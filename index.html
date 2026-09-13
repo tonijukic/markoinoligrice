@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="sl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Marko in Oli — Igrice 🎮</title>
+<meta name="description" content="Zbirka domačih igric Marka in Olija. Klikni in igraj!">
+<style>
+  :root{ --ink:#12203a; --card:#ffffff; }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;
+    color:var(--ink);min-height:100vh;
+    background:linear-gradient(160deg,#7ec8ff 0%,#9d7bff 55%,#ff8fd6 100%);
+    background-attachment:fixed;}
+  .wrap{max-width:1080px;margin:0 auto;padding:28px 20px 60px;}
+  header{text-align:center;color:#fff;padding:26px 10px 10px;}
+  header .logo{font-size:clamp(34px,7vw,64px);font-weight:900;letter-spacing:-1px;
+    text-shadow:0 4px 0 rgba(0,0,0,.15),0 10px 30px rgba(0,0,0,.25);line-height:1.05;}
+  header .logo .em{font-size:.9em;}
+  header p{margin-top:12px;font-size:clamp(15px,2.4vw,19px);font-weight:600;opacity:.95;
+    text-shadow:0 2px 8px rgba(0,0,0,.25);}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:22px;margin-top:34px;}
+  .card{background:var(--card);border-radius:22px;overflow:hidden;text-decoration:none;color:inherit;
+    box-shadow:0 14px 34px rgba(20,20,60,.28);transition:transform .18s ease,box-shadow .18s ease;
+    display:flex;flex-direction:column;}
+  .card:hover{transform:translateY(-6px) scale(1.02);box-shadow:0 22px 46px rgba(20,20,60,.38);}
+  .thumb{aspect-ratio:16/10;width:100%;object-fit:cover;background:#dfe8f5;display:block;}
+  .body{padding:16px 18px 18px;display:flex;flex-direction:column;gap:8px;flex:1;}
+  .title{font-size:22px;font-weight:900;display:flex;align-items:center;gap:8px;}
+  .desc{font-size:14.5px;color:#4a5a76;line-height:1.5;flex:1;}
+  .play{margin-top:6px;align-self:flex-start;background:#ffd23b;color:#12203a;font-weight:900;
+    font-size:15px;padding:11px 20px;border-radius:999px;box-shadow:0 5px 0 #d9a800;}
+  .card:hover .play{background:#ffde5e;}
+  /* prihajajoča igra */
+  .soon{background:rgba(255,255,255,.16);border:3px dashed rgba(255,255,255,.7);border-radius:22px;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;
+    color:#fff;min-height:240px;padding:24px;}
+  .soon .big{font-size:52px;}
+  .soon .t{font-weight:900;font-size:20px;margin-top:8px;}
+  .soon .s{font-size:14px;opacity:.9;margin-top:4px;}
+  footer{text-align:center;color:#fff;opacity:.9;margin-top:40px;font-size:13.5px;
+    text-shadow:0 1px 4px rgba(0,0,0,.25);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="logo"><span class="em">🎮</span> Marko in Oli</div>
+    <div class="logo" style="font-size:clamp(20px,4vw,34px);opacity:.95">Igrice</div>
+    <p>Izberi igro in klikni za igranje. Deluje na računalniku, tablici in telefonu.</p>
+  </header>
+
+  <div class="grid" id="grid"></div>
+
+  <footer>Narejeno z ljubeznijo doma 💙 · nove igre se dodajajo sproti</footer>
+</div>
+
+<script>
+// ====== SEZNAM IGER ======
+// Nova igra? Dodaj mapo v /igre/<slug>/index.html, sličico v /slike/<slug>.png
+// in eno vrstico spodaj. To je vse.
+const GAMES=[
+  { slug:'tankci', title:'Tankci', emoji:'🎯', img:'slike/tankci.png',
+    desc:'Artilerijski dvoboj za 2 igralca. Nameri kot in moč, uniči teren in zadeni nasprotni tank — pazi na vodo!' },
+  { slug:'dirkanje', title:'Dirkanje 3D', emoji:'🏁', img:'slike/dirkanje.png',
+    desc:'3D dirka za 1 ali 2 igralca. Izberi progo in voznika ter prevozi krog v najhitrejšem času.' },
+];
+
+const grid=document.getElementById('grid');
+GAMES.forEach(g=>{
+  const a=document.createElement('a');
+  a.className='card'; a.href='igre/'+g.slug+'/';
+  a.innerHTML =
+    '<img class="thumb" src="'+g.img+'" alt="'+g.title+'" loading="lazy">'+
+    '<div class="body">'+
+      '<div class="title">'+g.emoji+' '+g.title+'</div>'+
+      '<div class="desc">'+g.desc+'</div>'+
+      '<span class="play">▶ Igraj</span>'+
+    '</div>';
+  grid.appendChild(a);
+});
+
+// kartica "kmalu"
+const soon=document.createElement('div');
+soon.className='soon';
+soon.innerHTML='<div class="big">➕</div><div class="t">Kmalu nova igra</div><div class="s">Delamo na njej!</div>';
+grid.appendChild(soon);
+</script>
+</body>
+</html>

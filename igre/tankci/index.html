@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="sl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Tankci — artilerijski dvoboj (prototip)</title>
+<style>
+  html,body{margin:0;height:100%;background:#0b1020;overflow:hidden;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;color:#fff;-webkit-user-select:none;user-select:none;}
+  #wrap{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;}
+  canvas{background:#8fd0ff;max-width:100%;max-height:100%;border-radius:10px;
+    box-shadow:0 20px 60px rgba(0,0,0,.5);touch-action:none;}
+  /* HUD */
+  #hud{position:fixed;top:10px;left:0;right:0;display:flex;justify-content:space-between;
+    padding:0 14px;pointer-events:none;font-weight:800;z-index:5;}
+  .side{background:rgba(11,16,32,.55);padding:8px 12px;border-radius:12px;min-width:150px;}
+  .side small{opacity:.8;font-weight:700;font-size:12px;}
+  .hpbar{height:9px;background:rgba(255,255,255,.25);border-radius:6px;margin-top:5px;overflow:hidden;}
+  .hpfill{height:100%;transition:width .25s;}
+  #topmid{position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:6;text-align:center;
+    background:rgba(11,16,32,.6);padding:8px 16px;border-radius:14px;font-weight:800;font-size:15px;}
+  #wind{font-size:13px;opacity:.95;margin-top:2px;font-weight:700;}
+  /* spodnji nadzor */
+  #bottom{position:fixed;left:0;right:0;bottom:12px;display:flex;align-items:flex-end;
+    justify-content:space-between;padding:0 16px;z-index:6;pointer-events:none;}
+  .pad{display:flex;gap:10px;pointer-events:auto;}
+  .btn{width:64px;height:64px;border-radius:16px;background:rgba(255,255,255,.16);
+    border:2px solid rgba(255,255,255,.55);color:#fff;font-size:26px;font-weight:900;
+    display:flex;align-items:center;justify-content:center;touch-action:none;backdrop-filter:blur(4px);}
+  .btn:active{background:rgba(255,255,255,.4);}
+  #fireBtn{width:96px;height:96px;border-radius:50%;background:#ff5252;border:3px solid #fff;font-size:20px;line-height:1.05;}
+  #fireBtn:active{background:#ff2020;}
+  #meterWrap{position:fixed;left:50%;bottom:14px;transform:translateX(-50%);z-index:6;text-align:center;pointer-events:none;}
+  #meter{width:220px;height:16px;background:rgba(0,0,0,.45);border:2px solid rgba(255,255,255,.6);
+    border-radius:10px;overflow:hidden;margin:6px auto 0;}
+  #meterFill{height:100%;width:0%;background:linear-gradient(90deg,#4caf50,#ffeb3b,#ff5252);}
+  #readout{font-weight:800;font-size:14px;background:rgba(11,16,32,.6);padding:6px 12px;border-radius:12px;display:inline-block;}
+  #weaponBtn{position:fixed;top:74px;left:50%;transform:translateX(-50%);z-index:8;
+    background:rgba(11,16,32,.85);color:#fff;border:2px solid #ffde3b;border-radius:14px;
+    padding:9px 18px;font-weight:800;font-size:15px;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.45);white-space:nowrap;}
+  #weaponBtn:active{background:rgba(255,222,59,.35);}
+  /* meni / konec */
+  #overlay{position:fixed;inset:0;background:rgba(8,12,26,.9);z-index:10;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;text-align:center;padding:24px;}
+  #overlay h1{font-size:34px;margin:0 0 6px;}
+  #overlay p{max-width:560px;opacity:.92;line-height:1.5;font-size:15px;margin:6px 0;}
+  .play{margin-top:18px;background:#ffde3b;color:#0b1020;font-weight:900;font-size:20px;
+    padding:14px 30px;border:none;border-radius:16px;cursor:pointer;box-shadow:0 8px 20px rgba(0,0,0,.4);}
+  .keys{margin-top:16px;font-size:13px;opacity:.85;line-height:1.7;}
+  .keys b{color:#ffde3b;}
+  @media(max-width:720px){ .keys{display:none;} .btn{width:56px;height:56px;font-size:22px;} #fireBtn{width:84px;height:84px;} }
+</style>
+</head>
+<body>
+<div id="wrap"><canvas id="cv" width="1000" height="600"></canvas></div>
+
+<div id="hud">
+  <div class="side" id="hud1">
+    <div id="n1">🔵 Modri</div><small>Gorivo: <span id="f1">100</span></small>
+    <div class="hpbar"><div class="hpfill" id="hp1" style="width:100%;background:#4fc3f7"></div></div>
+  </div>
+  <div class="side" id="hud2" style="text-align:right">
+    <div id="n2">🔴 Rdeči</div><small>Gorivo: <span id="f2">100</span></small>
+    <div class="hpbar"><div class="hpfill" id="hp2" style="width:100%;background:#ff7961"></div></div>
+  </div>
+</div>
+
+<div id="topmid">
+  <div id="turn">Na potezi: Modri</div>
+  <div id="wind">Veter: —</div>
+</div>
+
+<button id="weaponBtn">🔫 Izstrelek — natančen  (Q za menjavo)</button>
+
+<div id="meterWrap">
+  <span id="readout">Kot: 45° &nbsp;·&nbsp; Moč: 0%</span>
+  <div id="meter"><div id="meterFill"></div></div>
+</div>
+
+<div id="bottom">
+  <div class="pad">
+    <div class="btn" data-k="left">◀</div>
+    <div class="btn" data-k="right">▶</div>
+  </div>
+  <div class="pad"><div id="fireBtn" class="btn">DRŽI<br>za moč</div></div>
+  <div class="pad">
+    <div class="btn" data-k="up">▲</div>
+    <div class="btn" data-k="down">▼</div>
+  </div>
+</div>
+
+<div id="overlay">
+  <h1>🎯 Tankci</h1>
+  <p>Artilerijski dvoboj za dva igralca na istem zaslonu. Izmenično se ciljata z nasprotnih bregov. Na svoji potezi se lahko malo <b>premakneš</b>, nastaviš <b>kot</b> in <b>moč</b> ter streljaš. Zadetek uniči teren in poškoduje nasprotnika. Streli <b>kopljejo teren</b>: nasprotnika lahko spraviš v luknjo, iz prestrme stene pa si moraš pot izstreliti sam. <b>Padec v globino ali luknjo te poškoduje.</b> <b>Pazi na vodo v dolini — padec vanjo pomeni takojšen poraz!</b> Gladina narašča (plima) — hitreje na strani, kjer nastane več lukenj, zato ne odlašaj predolgo. Zmaga, kdor prvi izniči nasprotnika.</p>
+  <div class="keys">
+    <b>Premik:</b> ◀ ▶ (gorivo je omejeno) &nbsp;·&nbsp; <b>Kot:</b> ▲ ▼<br>
+    <b>Strel:</b> drži <b>preslednico</b> (SPACE) ali gumb — moč niha gor/dol, spusti ob pravi moči<br>
+    <b>Orožje:</b> <b>Q</b> (ali gumb / tipki 1,2) — <b>Izstrelek</b> (natančen, poln lok) ali <b>Granata</b> (večji blast + več škode, a le nekaj pik napovedi)<br>
+    Deluje tudi z gumbi na zaslonu (mobilni telefon).
+  </div>
+  <button class="play" id="playBtn">▶ Začni igro</button>
+</div>
+
+<script>
+const cv=document.getElementById('cv'), ctx=cv.getContext('2d');
+const W=cv.width, H=cv.height;
+const $=id=>document.getElementById(id);
+
+// ---------- ZVOK (Web Audio, brez datotek) ----------
+let actx=null;
+function audioOn(){ if(!actx){ try{ actx=new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} } if(actx&&actx.state==='suspended') actx.resume(); }
+function tone(freq,dur,type='sine',vol=0.2,slideTo=null){
+  if(!actx)return; const t=actx.currentTime;
+  const o=actx.createOscillator(), g=actx.createGain();
+  o.type=type; o.frequency.setValueAtTime(freq,t);
+  if(slideTo) o.frequency.exponentialRampToValueAtTime(Math.max(20,slideTo),t+dur);
+  g.gain.setValueAtTime(vol,t); g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+  o.connect(g).connect(actx.destination); o.start(t); o.stop(t+dur+0.02);
+}
+function noise(dur,vol=0.4){
+  if(!actx)return; const t=actx.currentTime;
+  const n=Math.floor(actx.sampleRate*dur), buf=actx.createBuffer(1,n,actx.sampleRate), d=buf.getChannelData(0);
+  for(let i=0;i<n;i++) d[i]=(Math.random()*2-1)*(1-i/n);   // pojemajoč šum
+  const s=actx.createBufferSource(); s.buffer=buf;
+  const g=actx.createGain(); g.gain.setValueAtTime(vol,t); g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+  const f=actx.createBiquadFilter(); f.type='lowpass'; f.frequency.setValueAtTime(1200,t); f.frequency.exponentialRampToValueAtTime(120,t+dur);
+  s.connect(f).connect(g).connect(actx.destination); s.start(t); s.stop(t+dur+0.02);
+}
+function sFire(){ tone(420,0.18,'square',0.25,120); noise(0.12,0.2); }
+function sExplode(){ noise(0.5,0.6); tone(90,0.45,'sawtooth',0.3,40); }
+function sHit(){ tone(200,0.25,'square',0.25,600); }
+function sMove(){ tone(140,0.05,'square',0.08); }
+function sTick(){ tone(600,0.03,'sine',0.06); }
+function sMiss(){ tone(300,0.2,'sine',0.15,140); }
+function sSplash(){ noise(0.35,0.4); tone(520,0.32,'sine',0.2,120); }
+function sWin(){ [523,659,784,1046].forEach((f,i)=>setTimeout(()=>tone(f,0.22,'triangle',0.28),i*140)); }
+function sTurn(){ tone(500,0.08,'sine',0.14,760); }
+// naboj — zvenenje moči med držanjem
+let chargeOsc=null, chargeGain=null;
+function chargeStart(){ if(!actx)return; chargeOsc=actx.createOscillator(); chargeGain=actx.createGain();
+  chargeOsc.type='sawtooth'; chargeOsc.frequency.value=160; chargeGain.gain.value=0.12;
+  chargeOsc.connect(chargeGain).connect(actx.destination); chargeOsc.start(); }
+function chargeUpdate(p){ if(chargeOsc) chargeOsc.frequency.setTargetAtTime(160+p*10,actx.currentTime,0.02); }
+function chargeStop(){ if(chargeOsc){ try{chargeOsc.stop();}catch(e){} chargeOsc=null; chargeGain=null; } }
+
+// ---------- TEREN (uničljiv, hranjen kot pikselska maska) ----------
+const tcan=document.createElement('canvas'); tcan.width=W; tcan.height=H;
+const tctx=tcan.getContext('2d',{willReadFrequently:true});
+function genTerrain(){
+  // višinska karta: visoka bregova levo/desno, dolina na sredini
+  const base=H*0.60;
+  heightY=new Array(W); scorch=new Array(W).fill(false);
+  const half=Math.floor(W/2);
+  // levo polovico zgeneriramo (bolj hribovito), desno ZRCALIMO -> obe strani ENAKO zemlje (pošteno)
+  for(let x=0;x<=half;x++){
+    let y=base
+      + Math.sin(x*0.013)*58
+      + Math.sin(x*0.031+1.3)*32
+      + Math.sin(x*0.007+0.6)*40
+      + Math.sin(x*0.052+2.1)*15;
+    const midDip=110*Math.exp(-Math.pow((x-W/2)/150,2));    // dolina na sredini
+    const bank=-70*Math.exp(-Math.pow((x-W*0.16)/120,2));   // levi breg (desni z zrcaljenjem)
+    heightY[x]=Math.max(110,Math.min(H-70,y+midDip+bank));
+  }
+  for(let x=half+1;x<W;x++) heightY[x]=heightY[W-1-x];
+  renderTerrain(); computeWater();
+}
+function renderTerrain(){
+  tctx.clearRect(0,0,W,H);
+  for(let x=0;x<W;x++){
+    const y=heightY[x]|0;
+    tctx.fillStyle = scorch[x]?'#7a5a34':'#6ab150'; tctx.fillRect(x,y,1,6);              // vrh (trava / ožgano)
+    tctx.fillStyle = scorch[x]?'#4a2f16':'#8a5a2b'; tctx.fillRect(x,y+6,1,H-y-6);        // prst
+    tctx.fillStyle='rgba(60,38,18,0.35)'; tctx.fillRect(x,y+46,1,Math.max(0,H-y-46));    // globlje temneje
+  }
+}
+function computeWater(){
+  waterCols=new Array(W); for(let x=0;x<W;x++) waterCols[x]=heightY[x]>waterYAt(x);
+  waterSegs=[]; let wsx=-1;
+  for(let x=0;x<=W;x++){ if(x<W && waterCols[x]){ if(wsx<0)wsx=x; } else if(wsx>=0){ waterSegs.push({x0:wsx,x1:x-1}); wsx=-1; } }
+}
+function waterColAt(x){ x=x|0; return x>=0 && x<W && waterCols[x]; }
+
+// ---------- DELCI (eksplozija / pljusk) ----------
+function spawnBurst(x,y,n,cols,o){ o=o||{};
+  for(let i=0;i<n;i++){
+    const a=o.up ? -Math.PI/2+(Math.random()-0.5)*(o.spread||2.0) : Math.random()*6.283;
+    const sp=(o.smin||60)+Math.random()*(o.srange||200);
+    particles.push({x,y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,
+      life:0.4+Math.random()*(o.life||0.5), col:cols[(Math.random()*cols.length)|0],
+      r:(o.rmin||1.5)+Math.random()*(o.rrange||2.5), g:o.grav==null?700:o.grav});
+  }
+}
+function spawnExplosion(x,y,scale){
+  spawnBurst(x,y,Math.round(20*scale),['#ffe23b','#ff9b25','#ff5722','#7a3b12'],{smin:80,srange:240*scale,life:0.6,rmin:2,rrange:3*scale});
+  spawnBurst(x,y,Math.round(8*scale),['rgba(90,80,70,0.7)','rgba(120,110,100,0.6)'],{smin:20,srange:70,life:0.95,grav:120,rmin:3,rrange:5*scale});
+}
+function spawnSplash(x,y){
+  spawnBurst(x,y,22,['#8fd3ff','#4fb0e8','#ffffff','#2b8fd0'],{up:true,spread:1.5,smin:120,srange:220,life:0.7,rmin:1.5,rrange:2.5,grav:780});
+}
+function updateParticles(dt){
+  for(let i=particles.length-1;i>=0;i--){ const p=particles[i];
+    p.vy+=p.g*dt; p.x+=p.vx*dt; p.y+=p.vy*dt; p.life-=dt; if(p.life<=0) particles.splice(i,1);
+  }
+}
+function drawParticles(){
+  particles.forEach(p=>{ ctx.globalAlpha=Math.max(0,Math.min(1,p.life*2.2)); ctx.fillStyle=p.col;
+    ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,7); ctx.fill(); });
+  ctx.globalAlpha=1;
+}
+
+function surfaceY(x){ x=Math.max(0,Math.min(W-1,x|0)); return heightY[x]; }
+function solidAt(x,y){ x|=0; y|=0; if(x<0||x>=W||y<0||y>=H) return false; return y>=heightY[x]; }
+function carve(cx,cy,r){
+  if(cx<W/2) digL+=r*r/700; else digR+=r*r/700;   // beleži izkop -> plima na tej strani hitreje prodira
+  const x0=Math.max(0,Math.floor(cx-r)), x1=Math.min(W-1,Math.ceil(cx+r));
+  for(let x=x0;x<=x1;x++){
+    const dx=x-cx, dd=r*r-dx*dx; if(dd<=0) continue;
+    const bottom=cy+Math.sqrt(dd);            // spodnji rob kraterja v tem stolpcu
+    if(bottom>heightY[x]){ heightY[x]=Math.min(H-2,bottom); scorch[x]=true; }   // znižaj površino = izkoplji luknjo
+  }
+  renderTerrain(); computeWater();
+}
+
+// ---------- TANKI ----------
+const tanks=[
+  {name:'Modri', col:'#2f8fff', dark:'#1b5bb0', x:W*0.16, y:0, hp:100, dir:1,  angle:45, fuel:100, hpEl:'hp1', fEl:'f1', vy:0},
+  {name:'Rdeči', col:'#ff5147', dark:'#b0271f', x:W*0.84, y:0, hp:100, dir:-1, angle:45, fuel:100, hpEl:'hp2', fEl:'f2', vy:0},
+];
+const TANK_R=15, GRAV=900, MAXSPEED=830, FUEL_MAX=100;
+const MAXCLIMB=9, SNAP_DOWN=8, WALL_LOOK=8, WALL_RISE=10;   // sledenje terenu + prag naklona, ki ga tank ne prevozi
+const FALL_MIN=380, FALL_DMG_K=0.09;                        // prag/faktor škode ob padcu
+// orožja: [0] Izstrelek — poln napovedni lok, [1] Granata — večji blast + več škode, a le nekaj pik napovedi
+const WEAPONS=[
+  {name:'Izstrelek', explR:42, dmg:50, guide:8,  col:'#ffcc33', size:4},
+  {name:'Granata',   explR:60, dmg:72, guide:3,  col:'#ff5a2b', size:6},
+];
+let weapon=0;
+const BASE_WATER_Y=Math.round(H*0.70);        // začetna gladina
+const TIDE_STEP=1.8, TIDE_MAX=85;             // osnovni dvig na potezo + največji skupni dvig (blag)
+const DIG_TIDE=0.7;                           // dodaten dvig glede na izkopano zemljo na tisti strani
+let tideL=0, tideR=0, digL=0, digR=0;         // ločena plima L/D + izkop na vsaki strani (voda hitreje prodira, kjer je več lukenj)
+function waterYAt(x){ return BASE_WATER_Y - (x<W/2 ? tideL : tideR); }
+let heightY=[], scorch=[];                // višinska karta terena (y površine na stolpec) + kje je ožgano (krater)
+let waterCols=[], waterSegs=[];           // kje je voda + strnjeni odseki
+let particles=[];                         // delci (eksplozija, pljuski)
+
+// ---------- STANJE ----------
+let state='menu';         // menu | aim | fly | resolve | over
+let cur=0;                // trenutni igralec
+let power=0, charging=false, chargeDir=1;
+let wind=0;               // px/s^2
+let proj=null;            // {x,y,vx,vy,trail:[]}
+let shakeT=0;
+const keys={left:false,right:false,up:false,down:false};
+
+function resetTurnUI(){
+  const t=tanks[cur];
+  $('turn').textContent='Na potezi: '+t.name;
+  $('turn').style.color=t.col;
+  const dir = wind>0?'▶':(wind<0?'◀':'·');
+  $('wind').textContent='Veter: '+dir+' '+Math.abs(Math.round(wind/6))+'   ·   Plima L+'+Math.round(tideL)+' / D+'+Math.round(tideR);
+  updateWeaponUI();
+  updateReadout();
+}
+function updateReadout(){
+  const t=tanks[cur];
+  $('readout').innerHTML='Kot: '+Math.round(t.angle)+'° &nbsp;·&nbsp; Moč: '+Math.round(power)+'%';
+  $('meterFill').style.width=power+'%';
+  $('f1').textContent=Math.round(tanks[0].fuel); $('f2').textContent=Math.round(tanks[1].fuel);
+}
+function updateHP(){
+  tanks.forEach(t=>{ $(t.hpEl).style.width=Math.max(0,t.hp)+'%'; });
+}
+
+function startGame(){
+  audioOn();
+  tideL=0; tideR=0; digL=0; digR=0; weapon=0; particles=[];
+  genTerrain();
+  tanks.forEach(t=>{ t.hp=100; t.fuel=FUEL_MAX; t.angle=45; t.vy=0; t.y=surfaceY(t.x)-TANK_R; });
+  cur=0; power=0; charging=false; chargeDir=1;
+  wind=(Math.random()*2-1)*140;
+  proj=null; state='aim';
+  $('overlay').style.display='none';
+  updateHP(); resetTurnUI();
+}
+
+function nextTurn(){
+  // preveri smrt
+  const dead=tanks.filter(t=>t.hp<=0);
+  if(dead.length){ endGame(); return; }
+  cur=1-cur;
+  tanks[cur].fuel=FUEL_MAX;
+  power=0; charging=false; chargeDir=1;
+  wind=(Math.random()*2-1)*140;
+  // plima naraste na vsaki strani: osnovno + dodatno tam, kjer je nastalo več lukenj
+  tideL=Math.min(TIDE_MAX, tideL+TIDE_STEP+digL*DIG_TIDE);
+  tideR=Math.min(TIDE_MAX, tideR+TIDE_STEP+digR*DIG_TIDE);
+  digL=0; digR=0; computeWater();
+  state='aim'; sTurn(); resetTurnUI();
+}
+function endGame(){
+  state='over';
+  const alive=tanks.filter(t=>t.hp>0);
+  let msg;
+  if(alive.length===1){ msg='🏆 '+alive[0].name+' zmaga!'; }
+  else if(alive.length===0){ msg='💥 Neodločeno — oba uničena!'; }
+  else { msg='Konec'; }
+  $('overlay').querySelector('h1').textContent=msg;
+  $('overlay').querySelector('p').textContent='Še ena partija?';
+  $('playBtn').textContent='▶ Igraj znova';
+  $('overlay').style.display='flex';
+  sWin();
+}
+
+// ---------- STRELJANJE ----------
+function fire(){
+  if(state!=='aim') return;
+  const t=tanks[cur];
+  const spd=200+power/100*(MAXSPEED-200);
+  const a=t.angle*Math.PI/180;
+  const bx=t.x+Math.cos(a)*t.dir*22, by=(t.y-8)-Math.sin(a)*22;
+  proj={ x:bx, y:by, vx:Math.cos(a)*t.dir*spd, vy:-Math.sin(a)*spd, trail:[], life:0, w:WEAPONS[weapon] };
+  state='fly'; sFire();
+}
+
+function explode(x,y,w){
+  w=w||WEAPONS[0]; const R=w.explR, DM=w.dmg;
+  carve(x,y,R); sExplode(); shakeT=0.3+R/150; spawnExplosion(x,y,R/42);
+  let anyHit=false;
+  tanks.forEach(t=>{
+    const d=Math.hypot(t.x-x,(t.y-TANK_R)-y);
+    const reach=R+TANK_R;
+    if(d<reach){ const dmg=Math.round(DM*(1-d/reach)); if(dmg>0){ t.hp=Math.max(0,t.hp-dmg); anyHit=true; }
+      // sunek nazaj (večji blast = večji sunek)
+      const kb=(1-d/reach)*(30+R*0.4); t.x+=Math.sign(t.x-x||1)*kb;
+    }
+  });
+  if(anyHit) sHit();
+  updateHP();
+  proj=null; state='resolve';
+  setTimeout(nextTurn,1300);
+}
+
+// ---------- FIZIKA ----------
+function stepPhysics(dt){
+  // gravitacija za tanke (padanje po uničenju terena)
+  tanks.forEach(t=>{
+    t.x=Math.max(TANK_R,Math.min(W-TANK_R,t.x));
+    const target=heightY[t.x|0]-TANK_R;   // kjer naj tank sedi glede na TRENUTNI (izkopani) teren
+    if(t.y < target-0.5){                  // nad površino -> pada (npr. v svež krater)
+      t.vy+=GRAV*dt; t.y+=t.vy*dt;
+      if(t.y>=target){ t.y=target;
+        if(t.vy>FALL_MIN && t.hp>0){   // padec z višine / v luknjo -> škoda
+          const dmg=Math.min(45,Math.round((t.vy-FALL_MIN)*FALL_DMG_K));
+          if(dmg>0){ t.hp=Math.max(0,t.hp-dmg); updateHP(); sHit();
+            spawnBurst(t.x,target+TANK_R,12,['#caa07a','#8a5a2b','#6b4423'],{smin:40,srange:120,life:0.5,grav:600}); } }
+        if(t.vy>250) sMove(); t.vy=0; }
+      if(t.y>H+40){t.hp=0;updateHP();}
+    } else { t.y=target; t.vy=0; }
+    // kotaljenje po strmini v nižji teren (svež krater ob strani) — le izven ciljanja, da ne moti igralca
+    if(state!=='aim'){
+      const hc=heightY[t.x|0], hl=heightY[Math.max(0,(t.x|0)-6)], hr=heightY[Math.min(W-1,(t.x|0)+6)];
+      if(hr-hc>14 && hr>=hl){ t.x=Math.min(W-TANK_R,t.x+90*dt); }
+      else if(hl-hc>14 && hl>hr){ t.x=Math.max(TANK_R,t.x-90*dt); }
+    }
+  });
+
+  // utopitev: če tank pade v vodo v dolini -> takojšen poraz
+  tanks.forEach(t=>{ if(t.hp>0 && t.y+TANK_R>waterYAt(t.x) && waterColAt(t.x)){ t.hp=0; t.drowned=true; updateHP(); sSplash(); spawnSplash(t.x,waterYAt(t.x)); } });
+  if(state!=='resolve' && state!=='over' && tanks.some(t=>t.hp<=0)){ state='resolve'; setTimeout(nextTurn,800); }
+
+  // premik med ciljanjem
+  if(state==='aim'){
+    const t=tanks[cur];
+    if((keys.left||keys.right) && t.fuel>0){
+      const step=keys.right?1:-1, dx=step*70*dt;
+      const nx=Math.max(TANK_R,Math.min(W-TANK_R,t.x+dx));
+      const look=Math.max(0,Math.min(W-1,(t.x|0)+step*WALL_LOOK));
+      const riseAhead=heightY[t.x|0]-heightY[look];   // >0 = teren pred nami višji (navzgor)
+      if(riseAhead>WALL_RISE){ /* prestrma stena navzgor -> tank ne more, skoplji si pot z izstrelki */ }
+      else { t.x=nx; t.fuel=Math.max(0,t.fuel-Math.abs(dx)*0.6); if(Math.random()<0.25) sMove(); }
+      // višino uredi gravitacija -> tank sledi izkopani luknji ali pade vanjo
+    }
+    if(keys.up){ t.angle=Math.min(89,t.angle+45*dt); }
+    if(keys.down){ t.angle=Math.max(1,t.angle-45*dt); }
+    if(charging){ power+=chargeDir*70*dt; if(power>=100){power=100;chargeDir=-1;} if(power<=0){power=0;chargeDir=1;} chargeUpdate(power); }
+    updateReadout();
+  }
+
+  // projektil
+  if(state==='fly' && proj){
+    proj.life+=dt;
+    for(let s=0;s<3;s++){   // pod-koraki za natančen zadetek
+      const h=dt/3;
+      proj.vy+=GRAV*h; proj.vx+=wind*h;
+      proj.x+=proj.vx*h; proj.y+=proj.vy*h;
+      proj.trail.push({x:proj.x,y:proj.y}); if(proj.trail.length>26) proj.trail.shift();
+      // zadetek tanka
+      for(const t of tanks){ if(Math.hypot(t.x-proj.x,(t.y-TANK_R)-proj.y)<TANK_R+3){ explode(proj.x,proj.y,proj.w); return; } }
+      // pljusk v vodo (prestreže pred podvodnim terenom)
+      if(proj.x>=0 && proj.x<W && waterCols[proj.x|0] && proj.y>=waterYAt(proj.x)){ sSplash(); spawnSplash(proj.x,waterYAt(proj.x)); proj=null; state='resolve'; setTimeout(nextTurn,600); return; }
+      // zadetek terena
+      if(solidAt(proj.x,proj.y)){ explode(proj.x,proj.y,proj.w); return; }
+      // izven zaslona
+      if(proj.y>H+50 || proj.x<-80 || proj.x>W+80 || proj.life>9){ sMiss(); proj=null; state='resolve'; setTimeout(nextTurn,400); return; }
+    }
+  }
+}
+
+// ---------- RISANJE ----------
+const clouds=Array.from({length:6},()=>({x:Math.random()*W,y:40+Math.random()*120,s:0.6+Math.random()*0.8,v:6+Math.random()*10}));
+function drawBG(dt){
+  const g=ctx.createLinearGradient(0,0,0,H);
+  g.addColorStop(0,'#7ec8ff'); g.addColorStop(1,'#cdeeff');
+  ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+  ctx.fillStyle='rgba(255,255,255,0.85)';
+  clouds.forEach(c=>{ c.x+=c.v*dt; if(c.x>W+80)c.x=-80;
+    ctx.save(); ctx.translate(c.x,c.y); ctx.scale(c.s,c.s);
+    [[0,0,26],[26,6,20],[-26,6,20],[6,-10,18]].forEach(([dx,dy,r])=>{ctx.beginPath();ctx.arc(dx,dy,r,0,7);ctx.fill();});
+    ctx.restore(); });
+}
+function drawWater(){
+  const tm=performance.now()/1000;
+  const topRef=BASE_WATER_Y-Math.max(tideL,tideR);
+  waterSegs.forEach(seg=>{
+    ctx.save();
+    ctx.beginPath(); ctx.moveTo(seg.x0,H);
+    for(let x=seg.x0;x<=seg.x1;x+=5){ const wy=waterYAt(x)+Math.sin(x*0.05+tm*2.2)*2.5; ctx.lineTo(x,wy); }
+    ctx.lineTo(seg.x1,H); ctx.closePath();
+    const g=ctx.createLinearGradient(0,topRef,0,H);
+    g.addColorStop(0,'rgba(40,140,210,0.62)'); g.addColorStop(1,'rgba(18,70,140,0.88)');
+    ctx.fillStyle=g; ctx.fill();
+    ctx.strokeStyle='rgba(255,255,255,0.5)'; ctx.lineWidth=2; ctx.beginPath();
+    for(let x=seg.x0;x<=seg.x1;x+=5){ const wy=waterYAt(x)+Math.sin(x*0.05+tm*2.2)*2.5; x===seg.x0?ctx.moveTo(x,wy):ctx.lineTo(x,wy); }
+    ctx.stroke(); ctx.restore();
+  });
+}
+function drawTank(t,active){
+  ctx.save(); ctx.translate(t.x,t.y);
+  // senca
+  ctx.fillStyle='rgba(0,0,0,0.18)'; ctx.beginPath(); ctx.ellipse(0,TANK_R-1,TANK_R+3,5,0,0,7); ctx.fill();
+  // gosenice
+  ctx.fillStyle='#333'; ctx.beginPath(); ctx.roundRect(-TANK_R-2,2,2*TANK_R+4,12,4); ctx.fill();
+  ctx.fillStyle='#555'; for(let i=-TANK_R;i<TANK_R;i+=6){ ctx.beginPath(); ctx.arc(i+3,8,2.2,0,7); ctx.fill(); }
+  // trup
+  ctx.fillStyle=t.col; ctx.beginPath(); ctx.roundRect(-TANK_R,-6,2*TANK_R,12,4); ctx.fill();
+  ctx.fillStyle=t.dark; ctx.beginPath(); ctx.roundRect(-9,-13,18,9,4); ctx.fill();   // kupola
+  // cev
+  const a=t.angle*Math.PI/180;
+  ctx.strokeStyle=t.dark; ctx.lineWidth=5; ctx.lineCap='round';
+  ctx.beginPath(); ctx.moveTo(0,-9); ctx.lineTo(Math.cos(a)*t.dir*22,-9-Math.sin(a)*22); ctx.stroke();
+  // oznaka aktivnega
+  if(active){ ctx.fillStyle='#ffde3b'; ctx.beginPath(); ctx.moveTo(0,-30);ctx.lineTo(-6,-22);ctx.lineTo(6,-22);ctx.closePath(); ctx.fill(); }
+  ctx.restore();
+  // napovedni pikčasti lok (samo aktiven, med ciljanjem)
+  if(active && state==='aim') drawAimGuide(t);
+}
+function drawAimGuide(t){
+  const spd=200+power/100*(MAXSPEED-200), a=t.angle*Math.PI/180;
+  let x=t.x+Math.cos(a)*t.dir*22, y=(t.y-8)-Math.sin(a)*22;
+  let vx=Math.cos(a)*t.dir*spd, vy=-Math.sin(a)*spd, dt=0.03;
+  const guide=WEAPONS[weapon].guide;   // granata pokaže le nekaj pik -> težje meriti
+  ctx.fillStyle='rgba(255,255,255,0.75)';
+  let shown=0;
+  for(let i=0;i<80 && shown<guide;i++){ vy+=GRAV*dt; vx+=wind*dt; x+=vx*dt; y+=vy*dt;
+    if(y>H||x<0||x>W)break; if(i%2===0){ctx.beginPath();ctx.arc(x,y,2.2,0,7);ctx.fill(); shown++;} }
+}
+function drawProj(){
+  if(!proj)return;
+  ctx.strokeStyle='rgba(255,200,80,0.6)'; ctx.lineWidth=2; ctx.beginPath();
+  proj.trail.forEach((p,i)=>{ i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y); }); ctx.stroke();
+  const sz=proj.w?proj.w.size:4;
+  ctx.fillStyle='#222'; ctx.beginPath(); ctx.arc(proj.x,proj.y,sz,0,7); ctx.fill();
+  ctx.fillStyle=proj.w?proj.w.col:'#ffcc33'; ctx.beginPath(); ctx.arc(proj.x,proj.y,sz*0.5,0,7); ctx.fill();
+}
+
+// ---------- ZANKA ----------
+let last=performance.now();
+function loop(now){
+  requestAnimationFrame(loop);
+  let dt=Math.min((now-last)/1000,0.033); last=now;
+  if(state!=='menu' && state!=='over') stepPhysics(dt);
+  updateParticles(dt);
+
+  ctx.save();
+  if(shakeT>0){ shakeT-=dt; const s=shakeT*22; ctx.translate((Math.random()*2-1)*s,(Math.random()*2-1)*s); }
+  drawBG(dt);
+  ctx.drawImage(tcan,0,0);
+  drawWater();
+  tanks.forEach((t,i)=>{ if(t.hp>0) drawTank(t,i===cur && (state==='aim')); });
+  drawProj();
+  drawParticles();
+  ctx.restore();
+}
+requestAnimationFrame(loop);
+
+// ---------- VNOS ----------
+function press(k,v){ keys[k]=v; if(v&&k==='up'||v&&k==='down') sTick(); }
+addEventListener('keydown',e=>{
+  if(state==='menu'||state==='over'){ if(e.key===' '||e.key==='Enter'){startGame();e.preventDefault();} return; }
+  if(e.repeat){e.preventDefault();return;}
+  if(e.key==='ArrowLeft')keys.left=true;
+  else if(e.key==='ArrowRight')keys.right=true;
+  else if(e.key==='ArrowUp'){keys.up=true;sTick();}
+  else if(e.key==='ArrowDown'){keys.down=true;sTick();}
+  else if(e.key===' '){ if(state==='aim'&&!charging){charging=true;chargeDir=1;power=0;chargeStart();} }
+  else if(e.key==='q'||e.key==='Q'){ if(state==='aim') toggleWeapon(); }
+  else if(e.key==='1'){ if(state==='aim'){ weapon=0; updateWeaponUI(); updateReadout(); sTick(); } }
+  else if(e.key==='2'){ if(state==='aim'){ weapon=1; updateWeaponUI(); updateReadout(); sTick(); } }
+  else return; e.preventDefault();
+});
+addEventListener('keyup',e=>{
+  if(e.key==='ArrowLeft')keys.left=false;
+  else if(e.key==='ArrowRight')keys.right=false;
+  else if(e.key==='ArrowUp')keys.up=false;
+  else if(e.key==='ArrowDown')keys.down=false;
+  else if(e.key===' '){ if(charging){charging=false;chargeStop();fire();} }
+  else return; e.preventDefault();
+});
+// gumbi za premik/kot
+document.querySelectorAll('.btn[data-k]').forEach(b=>{ const k=b.dataset.k;
+  const on=e=>{keys[k]=true; if(k==='up'||k==='down')sTick(); e.preventDefault();};
+  const off=e=>{keys[k]=false; e.preventDefault();};
+  b.addEventListener('touchstart',on,{passive:false}); b.addEventListener('touchend',off,{passive:false});
+  b.addEventListener('mousedown',on); b.addEventListener('mouseup',off); b.addEventListener('mouseleave',off);
+});
+// gumb FIRE (drži za moč)
+const fb=$('fireBtn');
+const fbOn=e=>{ if(state==='aim'&&!charging){charging=true;chargeDir=1;power=0;chargeStart();} e.preventDefault(); };
+const fbOff=e=>{ if(charging){charging=false;chargeStop();fire();} e.preventDefault(); };
+fb.addEventListener('touchstart',fbOn,{passive:false}); fb.addEventListener('touchend',fbOff,{passive:false});
+fb.addEventListener('mousedown',fbOn); fb.addEventListener('mouseup',fbOff); fb.addEventListener('mouseleave',fbOff);
+
+$('playBtn').addEventListener('click',startGame);
+
+// ---------- OROŽJE ----------
+function updateWeaponUI(){ const w=WEAPONS[weapon];
+  $('weaponBtn').textContent=(weapon===0?'🔫 ':'💣 ')+w.name+(weapon===0?' — natančen':' — močan, slaba napoved')+'  (Q za menjavo)'; }
+function toggleWeapon(){ weapon=(weapon+1)%WEAPONS.length; sTick(); updateWeaponUI(); updateReadout(); }
+$('weaponBtn').addEventListener('click',e=>{ if(state==='aim') toggleWeapon(); e.preventDefault(); });
+
+// roundRect polyfill (starejši brskalniki)
+if(!CanvasRenderingContext2D.prototype.roundRect){
+  CanvasRenderingContext2D.prototype.roundRect=function(x,y,w,h,r){
+    this.beginPath();this.moveTo(x+r,y);this.arcTo(x+w,y,x+w,y+h,r);this.arcTo(x+w,y+h,x,y+h,r);
+    this.arcTo(x,y+h,x,y,r);this.arcTo(x,y,x+w,y,r);this.closePath();return this;};
+}
+</script>
+</body>
+</html>

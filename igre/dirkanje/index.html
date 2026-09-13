@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="sl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Dirkanje 3D - proge, 2 igralca, kamera</title>
+<style>
+  html,body{margin:0;height:100%;overflow:hidden;background:#87ceeb;font-family:-apple-system,Arial,sans-serif;}
+  #hud{position:fixed;top:12px;left:12px;color:#fff;font-weight:800;font-size:19px;
+       text-shadow:0 2px 4px rgba(0,0,0,.5);line-height:1.35;z-index:5;}
+  #hud .big{font-size:26px;}
+  #turbo{color:#ffde3b;display:none;}
+  #count{position:fixed;top:36%;left:50%;transform:translate(-50%,-50%);color:#fff;font-weight:900;
+         font-size:120px;text-shadow:0 4px 14px rgba(0,0,0,.5);z-index:7;display:none;}
+  #finish{position:fixed;top:14px;left:50%;transform:translateX(-50%);color:#fff;font-weight:900;
+          font-size:24px;text-shadow:0 2px 8px rgba(0,0,0,.55);z-index:6;text-align:center;display:none;
+          background:rgba(11,29,58,.55);padding:12px 20px;border-radius:16px;}
+  #menu{position:fixed;inset:0;background:rgba(11,29,58,.86);z-index:10;display:flex;flex-direction:column;
+        align-items:center;justify-content:center;color:#fff;text-align:center;padding:18px;overflow:auto;}
+  #menu h1{font-size:32px;margin:0 0 4px;} #menu p{opacity:.9;margin:0 0 14px;max-width:600px;font-size:15px;}
+  .lbl{font-size:13px;opacity:.75;margin:10px 0 6px;letter-spacing:.5px;text-transform:uppercase;}
+  .row{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;max-width:640px;}
+  .chip{padding:12px 16px;border-radius:14px;border:3px solid rgba(255,255,255,.5);cursor:pointer;
+        font-weight:800;font-size:16px;background:rgba(255,255,255,.12);color:#fff;}
+  .chip.sel{border-color:#ffde3b;background:rgba(255,222,59,.22);}
+  .drivers{display:flex;gap:14px;flex-wrap:wrap;justify-content:center;margin-top:6px;}
+  .driver{width:140px;padding:16px 12px;border-radius:18px;border:4px solid #fff;cursor:pointer;
+          font-weight:900;font-size:21px;color:#0b1d3a;box-shadow:0 6px 16px rgba(0,0,0,.3);}
+  .driver small{display:block;font-size:13px;font-weight:700;color:#0b1d3a;opacity:.8;margin-top:8px;}
+  .lead{margin-top:16px;font-size:15px;opacity:.95;}
+  .pad{position:fixed;bottom:20px;z-index:6;display:flex;gap:14px;user-select:none;-webkit-user-select:none;}
+  #padL{left:20px;} #padR{right:20px;}
+  .btn{width:74px;height:74px;border-radius:18px;background:rgba(255,255,255,.35);
+       border:3px solid rgba(255,255,255,.7);color:#0b1d3a;font-size:32px;font-weight:900;
+       display:flex;align-items:center;justify-content:center;touch-action:none;}
+  .btn:active{background:rgba(255,255,255,.65);}
+  /* kamera kontrola na zaslonu */
+  #camctl{position:fixed;top:12px;right:12px;z-index:6;display:flex;flex-direction:column;gap:8px;}
+  .cbtn{width:52px;height:52px;border-radius:14px;background:rgba(255,255,255,.32);
+        border:2px solid rgba(255,255,255,.7);color:#0b1d3a;font-size:22px;font-weight:900;
+        display:flex;align-items:center;justify-content:center;touch-action:none;user-select:none;-webkit-user-select:none;}
+  .cbtn:active{background:rgba(255,255,255,.6);}
+  #hint{position:fixed;bottom:14px;left:50%;transform:translateX(-50%);color:#fff;opacity:.85;
+        font-size:12px;z-index:5;text-shadow:0 1px 3px rgba(0,0,0,.5);text-align:center;}
+</style>
+</head>
+<body>
+<div id="hud">
+  <div class="big" id="pname">-</div>
+  <div>Čas: <span id="time">0.0</span> s</div>
+  <div id="p2line" style="display:none;"></div>
+  <div id="turbo">TURBO! 🔥</div>
+</div>
+<div id="count"></div>
+<div id="finish"></div>
+
+<!-- kamera na zaslonu -->
+<div id="camctl">
+  <div class="cbtn" data-cam="in">🔍+</div>
+  <div class="cbtn" data-cam="out">🔍−</div>
+  <div class="cbtn" data-cam="up">⤒</div>
+  <div class="cbtn" data-cam="down">⤓</div>
+</div>
+
+<div id="menu">
+  <h1>🏁 Dirkanje 3D</h1>
+  <p>Izberi <b>progo</b>, <b>način</b> in <b>voznika</b>. Prevozi 1 krog v najkrajšem času. Poberi <b>kantico bencina</b> za turbo, pazi na <b>luknje</b>, vsak <b>dotik ograje = +15% hitrosti</b> (trajno)!</p>
+  <div class="lbl">Proga</div>
+  <div id="tracks" class="row"></div>
+  <div class="lbl">Način</div>
+  <div id="modes" class="row"></div>
+  <div class="lbl">Voznik (klikni za start)</div>
+  <div class="drivers" id="drivers"></div>
+  <div class="lead" id="lead"></div>
+</div>
+
+<div class="pad" id="padL"><div class="btn" data-k="left">◀</div><div class="btn" data-k="right">▶</div></div>
+<div class="pad" id="padR"><div class="btn" data-k="down">▼</div><div class="btn" data-k="up">▲</div></div>
+<div id="hint">1 igralec: puščice ◀▲▼▶ (ali gumbi) · 2 igralca: 2. igralec = W A S D · kamera: gumbi desno zgoraj</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+// ===== NASTAVITVE =====
+const NAJ_HITROST=72, TURBO_MOC=1.8, TURBO_TRAJANJE=2.6, STEVILO_KANTIC=2, STEVILO_LUKENJ=6, LUKNJA_KAZEN=3.2;
+const TURN=1.53;
+const $=id=>document.getElementById(id);
+
+const players=[
+  {name:'Olivia',color:0xff4fa3,best:null},
+  {name:'Marko', color:0x2f6bff,best:null},
+  {name:'Oči',   color:0x18a558,best:null},
+];
+
+// ===== PROGE (4) — vsaka svoja oblika + tema =====
+// Vsaka proga ima RAVNINO (zaporedje skoraj kolinearnih točk) — nanjo se
+// samodejno postavi skakalnica (zalet + pristanek pred naslednjim ovinkom).
+const TRACKS=[
+  {name:'Travnik', emoji:'🌳', bg:0x87ceeb, fog:[0x9fd6ef,260,640], ground:0x5bb64f, theme:'grass',
+   cps:[[-78,-92],[-12,-95],[56,-94],[112,-76],[124,-16],[100,46],[52,94],[-22,112],[-90,90],[-122,30],[-114,-42],[-98,-86]]},
+  {name:'Plaža', emoji:'🏖️', bg:0x8fd3ff, fog:[0xbfe6ff,300,700], ground:0xEED9A0, theme:'beach',
+   cps:[[120,-72],[123,-6],[120,60],[92,108],[34,128],[-42,120],[-102,92],[-128,30],[-110,-42],[-70,-96],[-6,-118],[62,-100]]},
+  {name:'Gore (sneg)', emoji:'🏔️', bg:0xC6D8E4, fog:[0xD8E6EE,200,560], ground:0xEAF2F7, theme:'snow',
+   cps:[[-62,110],[8,114],[76,108],[118,70],[122,6],[96,-56],[40,-100],[-30,-118],[-96,-92],[-124,-28],[-110,42],[-88,92]]},
+  {name:'Jezero', emoji:'🏞️', bg:0x87ceeb, fog:[0xAEE0F0,320,720], ground:0x57b04b, theme:'lake',
+   cps:[[126,-60],[128,6],[124,68],[95,112],[35,132],[-42,124],[-104,96],[-134,30],[-116,-42],[-74,-100],[-6,-124],[64,-104]]},
+];
+
+// ===== SCENA =====
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x87ceeb);
+scene.fog=new THREE.Fog(0x9fd6ef,260,640);
+const camera=new THREE.PerspectiveCamera(52,innerWidth/innerHeight,0.1,3000);
+let CAM_H=52, CAM_BACK=20;   // kamera (spreminjata gumba na zaslonu)
+const renderer=new THREE.WebGLRenderer({antialias:true});
+renderer.setSize(innerWidth,innerHeight); renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.shadowMap.enabled=true; document.body.appendChild(renderer.domElement);
+scene.add(new THREE.AmbientLight(0xffffff,0.82));
+const sun=new THREE.DirectionalLight(0xffffff,0.9);
+sun.position.set(80,140,50); sun.castShadow=true; sun.shadow.mapSize.set(2048,2048);
+Object.assign(sun.shadow.camera,{left:-260,right:260,top:260,bottom:-260}); scene.add(sun);
+
+const groundMat=new THREE.MeshLambertMaterial({color:0x5bb64f});
+groundMat.polygonOffset=true; groundMat.polygonOffsetFactor=3; groundMat.polygonOffsetUnits=3;   // potisni tla nazaj -> cesta/morje/jezero ne mižikajo (brez z-fightinga)
+const ground=new THREE.Mesh(new THREE.PlaneGeometry(1400,1400), groundMat);
+ground.rotation.x=-Math.PI/2; ground.position.y=-0.15; ground.receiveShadow=true; scene.add(ground);
+
+const world=new THREE.Group(); scene.add(world);   // vse, kar je odvisno od proge
+function clearGroup(g){while(g.children.length)g.remove(g.children[0]);}
+
+// ===== TRENUTNA PROGA (rebuildan v buildTrack) =====
+let curve, center, norms, edgeL, edgeR;
+const N=260, HW=13;
+const holes=[], cans=[];
+let ramp=null;   // skakalnica {x,z,r}
+
+function buildRoad(){
+  const up=new THREE.Vector3(0,1,0),t=new THREE.Vector3(),nrm=new THREE.Vector3();
+  const pos=[],idx=[]; edgeL.length=0; edgeR.length=0; norms.length=0;
+  for(let i=0;i<=N;i++){
+    const p=center[i],pn=center[(i+1)%(N+1)];
+    t.subVectors(pn,p).normalize(); nrm.crossVectors(t,up).normalize();
+    norms[i]=nrm.clone();
+    pos.push(p.x+nrm.x*HW,0.05,p.z+nrm.z*HW, p.x-nrm.x*HW,0.05,p.z-nrm.z*HW);
+    edgeL.push(new THREE.Vector3(p.x+nrm.x*HW,0.1,p.z+nrm.z*HW));
+    edgeR.push(new THREE.Vector3(p.x-nrm.x*HW,0.1,p.z-nrm.z*HW));
+  }
+  for(let i=0;i<N;i++){const a=i*2; idx.push(a,a+1,a+2,a+1,a+3,a+2);}
+  const g=new THREE.BufferGeometry();
+  g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3)); g.setIndex(idx); g.computeVertexNormals();
+  const road=new THREE.Mesh(g,new THREE.MeshLambertMaterial({color:0x474c54,side:THREE.DoubleSide}));
+  road.receiveShadow=true; world.add(road);
+  const lm=new THREE.LineBasicMaterial({color:0xffffff});
+  world.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(edgeL),lm));
+  world.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(edgeR),lm));
+}
+function buildWall(edge){
+  const pos=[],idx=[],h=1.5;
+  for(let i=0;i<edge.length;i++){const p=edge[i]; pos.push(p.x,0.1,p.z, p.x,h,p.z);}
+  for(let i=0;i<edge.length-1;i++){const a=i*2; idx.push(a,a+1,a+2,a+1,a+3,a+2);}
+  const g=new THREE.BufferGeometry();
+  g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3)); g.setIndex(idx); g.computeVertexNormals();
+  const m=new THREE.Mesh(g,new THREE.MeshLambertMaterial({color:0xe23b3b,side:THREE.DoubleSide}));
+  m.castShadow=true; world.add(m);
+}
+function finishLine(){
+  const p=curve.getPointAt(0),t=curve.getTangentAt(0),nrm=new THREE.Vector3().crossVectors(t,new THREE.Vector3(0,1,0)).normalize();
+  const m=new THREE.Mesh(new THREE.PlaneGeometry(HW*2,4),new THREE.MeshBasicMaterial({color:0xffffff}));
+  m.rotation.x=-Math.PI/2; m.rotation.z=Math.atan2(nrm.z,nrm.x); m.position.set(p.x,0.15,p.z); world.add(m);
+}
+function makeHoles(){
+  holes.length=0;
+  for(let i=0;i<STEVILO_LUKENJ;i++){
+    const u=(i+0.5)/STEVILO_LUKENJ, p=curve.getPointAt(u), t=curve.getTangentAt(u);
+    const nrm=new THREE.Vector3().crossVectors(t,new THREE.Vector3(0,1,0)).normalize();
+    const off=(Math.random()*2-1)*(HW-4), x=p.x+nrm.x*off, z=p.z+nrm.z*off;
+    const m=new THREE.Mesh(new THREE.CircleGeometry(3,20),new THREE.MeshBasicMaterial({color:0x14161a}));
+    m.rotation.x=-Math.PI/2; m.position.set(x,0.16,z); world.add(m);
+    holes.push({x,z,r:3.4});
+  }
+}
+// Poišči najbolj RAVEN odsek: indeks, kjer je vsota zavijanja (zalet + pristanek)
+// najmanjša — tam je zalet ravan, pristanek ravan in šele nato ovinek.
+function bestStraightIndex(){
+  const hd=[];
+  for(let i=0;i<=N;i++){const a=center[i],b=center[(i+1)%(N+1)]; hd[i]=Math.atan2(b.x-a.x,b.z-a.z);}
+  const W=22, A=7; let best=0,bt=1e9;
+  for(let i=0;i<N;i++){ let turn=0;
+    for(let k=-A;k<W;k++){ const j=((i+k)%N+N)%N; let d=hd[(j+1)%(N+1)]-hd[j]; while(d>Math.PI)d-=2*Math.PI; while(d<-Math.PI)d+=2*Math.PI; turn+=Math.abs(d); }
+    if(turn<bt){bt=turn;best=i;} }
+  return best;
+}
+function makeRamp(){
+  const bi=bestStraightIndex(), p=center[bi], pn=center[(bi+3)%(N+1)];
+  const hd=Math.atan2(pn.x-p.x,pn.z-p.z);
+  const g=new THREE.Group(); g.position.set(p.x,0,p.z); g.rotation.y=hd;
+  const len=12, hgt=3.4, w=HW*1.6;
+  const r=new THREE.Mesh(new THREE.BoxGeometry(w,0.6,len),new THREE.MeshLambertMaterial({color:0xffb300}));
+  r.rotation.x=-Math.atan2(hgt,len); r.position.set(0,hgt/2-0.3,0); r.castShadow=true; g.add(r);
+  // opozorilne črtice na vrhu odskoka
+  const stripe=new THREE.Mesh(new THREE.BoxGeometry(w,0.65,1.4),new THREE.MeshLambertMaterial({color:0x1a1a1a}));
+  stripe.rotation.x=r.rotation.x; stripe.position.set(0,hgt-0.35,len*0.42); g.add(stripe);
+  world.add(g);
+  ramp={x:p.x,z:p.z,r:7};
+}
+function makeCanMesh(){
+  const g=new THREE.Group();
+  g.add(new THREE.Mesh(new THREE.BoxGeometry(2.2,2.8,1.4),new THREE.MeshLambertMaterial({color:0xd32f2f,emissive:0x3a0000})));
+  const cap=new THREE.Mesh(new THREE.CylinderGeometry(0.4,0.4,0.6,10),new THREE.MeshLambertMaterial({color:0x222})); cap.position.set(0.6,1.6,0); g.add(cap);
+  return g;
+}
+function placeCans(){
+  cans.forEach(c=>world.remove(c.mesh)); cans.length=0;
+  for(let i=0;i<STEVILO_KANTIC;i++){
+    const u=((i+0.5)/STEVILO_KANTIC+0.12)%1, p=curve.getPointAt(u);
+    const m=makeCanMesh(); m.position.set(p.x,1.6,p.z); world.add(m);
+    cans.push({mesh:m,x:p.x,z:p.z,taken:false});
+  }
+}
+
+// ===== OKOLICA po temi =====
+function cloud(x,y,z){const g=new THREE.Group();
+  const mat=new THREE.MeshLambertMaterial({color:0xffffff,transparent:true,opacity:0.45,depthWrite:false});
+  for(let j=0;j<4;j++){const s=new THREE.Mesh(new THREE.SphereGeometry(10+Math.random()*8,10,10),mat);
+    s.position.set(j*10-15+Math.random()*6,Math.random()*4,Math.random()*8); s.scale.y=0.6; g.add(s);}
+  g.position.set(x,y,z); world.add(g);}
+function tree(x,z,sc,leaf){const g=new THREE.Group();
+  const d=new THREE.Mesh(new THREE.CylinderGeometry(0.9,1.2,5,8),new THREE.MeshLambertMaterial({color:0x7a4a24})); d.position.y=2.5; d.castShadow=true; g.add(d);
+  for(let k=0;k<3;k++){const c=new THREE.Mesh(new THREE.ConeGeometry(3.4-k*0.7,3.6,9),new THREE.MeshLambertMaterial({color:leaf})); c.position.y=5+k*2.2; c.castShadow=true; g.add(c);}
+  g.position.set(x,0,z); g.scale.setScalar(sc); world.add(g);}
+function snowPine(x,z,sc){const g=new THREE.Group();
+  const d=new THREE.Mesh(new THREE.CylinderGeometry(0.8,1.0,4,8),new THREE.MeshLambertMaterial({color:0x6b4423})); d.position.y=2; g.add(d);
+  for(let k=0;k<3;k++){const c=new THREE.Mesh(new THREE.ConeGeometry(3.2-k*0.7,3.4,9),new THREE.MeshLambertMaterial({color:0x2f6d3a})); c.position.y=4.4+k*2.1; c.castShadow=true; g.add(c);
+    const sn=new THREE.Mesh(new THREE.ConeGeometry(3.3-k*0.7,1.1,9),new THREE.MeshLambertMaterial({color:0xffffff})); sn.position.y=5.6+k*2.1; g.add(sn);}
+  g.position.set(x,0,z); g.scale.setScalar(sc); world.add(g);}
+function palm(x,z){const g=new THREE.Group();
+  const tr=new THREE.Mesh(new THREE.CylinderGeometry(0.6,0.9,10,8),new THREE.MeshLambertMaterial({color:0x9c6b3a})); tr.position.y=5; tr.rotation.z=0.12; tr.castShadow=true; g.add(tr);
+  for(let k=0;k<6;k++){const f=new THREE.Mesh(new THREE.ConeGeometry(1.2,6,6),new THREE.MeshLambertMaterial({color:0x2fae54}));
+    f.position.set(Math.cos(k/6*6.28)*2.4,10,Math.sin(k/6*6.28)*2.4); f.rotation.z=Math.PI/2; f.rotation.y=k/6*6.28; f.scale.set(0.5,1,0.5); g.add(f);}
+  const co=new THREE.Mesh(new THREE.SphereGeometry(1.1,8,8),new THREE.MeshLambertMaterial({color:0x6b4423})); co.position.y=9.4; g.add(co);
+  g.position.set(x,0,z); world.add(g);}
+function umbrella(x,z){const g=new THREE.Group();
+  const pole=new THREE.Mesh(new THREE.CylinderGeometry(0.15,0.15,5,8),new THREE.MeshLambertMaterial({color:0xffffff})); pole.position.y=2.5; g.add(pole);
+  const top=new THREE.Mesh(new THREE.ConeGeometry(4,2.2,14),new THREE.MeshLambertMaterial({color:Math.random()>.5?0xff5252:0xffca28})); top.position.y=5.5; g.add(top);
+  g.position.set(x,0,z); world.add(g);}
+function farPeaks(snowy){for(let i=0;i<16;i++){const a=i/16*Math.PI*2, r=430+Math.random()*90, h=70+Math.random()*90;
+  const c=new THREE.Mesh(new THREE.ConeGeometry(60+Math.random()*40,h,7),new THREE.MeshLambertMaterial({color:snowy?0x8fa6bd:0x6b8f5a}));
+  c.position.set(Math.cos(a)*r,h/2-4,Math.sin(a)*r); world.add(c);
+  const snow=new THREE.Mesh(new THREE.ConeGeometry(24,h*(snowy?0.5:0.28),7),new THREE.MeshLambertMaterial({color:0xffffff}));
+  snow.position.set(Math.cos(a)*r,h*(snowy?0.74:0.86)-4,Math.sin(a)*r); world.add(snow);}}
+
+function decorate(theme){
+  for(let i=0;i<14;i++){const a=Math.random()*6.28,r=150+Math.random()*260; cloud(Math.cos(a)*r,90+Math.random()*40,Math.sin(a)*r);}
+  if(theme==='grass'){
+    farPeaks(false);
+    for(let i=0;i<70;i++){const a=Math.random()*6.28,r=150+Math.random()*230; tree(Math.cos(a)*r,Math.sin(a)*r,0.8+Math.random()*0.8,0x2e7d32);}
+  } else if(theme==='beach'){
+    // morje na eni strani + palme + senčniki
+    // morje daleč stran od proge (levi rob pri x~200, da ne prekriva ceste)
+    const sea=new THREE.Mesh(new THREE.PlaneGeometry(560,1100),new THREE.MeshLambertMaterial({color:0x1f9fd6}));
+    sea.rotation.x=-Math.PI/2; sea.position.set(480,0.02,0); world.add(sea);
+    // palme in senčniki po pesku med progo in morjem (ne v morju)
+    for(let i=0;i<24;i++){const a=(Math.random()*1.4-0.7), r=150+Math.random()*45; palm(Math.cos(a)*r,Math.sin(a)*r); const a2=Math.random()*6.28,r2=150+Math.random()*150; if(Math.cos(a2)*r2<160) palm(Math.cos(a2)*r2,Math.sin(a2)*r2);}
+    for(let i=0;i<12;i++){const a=Math.random()*6.28,r=150+Math.random()*130; const x=Math.cos(a)*r; if(x<170) umbrella(x,Math.sin(a)*r);}
+  } else if(theme==='snow'){
+    farPeaks(true);
+    for(let i=0;i<80;i++){const a=Math.random()*6.28,r=150+Math.random()*220; snowPine(Math.cos(a)*r,Math.sin(a)*r,0.8+Math.random()*0.8);}
+    for(let i=0;i<40;i++){const a=Math.random()*6.28,r=150+Math.random()*220; const rock=new THREE.Mesh(new THREE.DodecahedronGeometry(2+Math.random()*3),new THREE.MeshLambertMaterial({color:0x9aa7b3})); rock.position.set(Math.cos(a)*r,1,Math.sin(a)*r); world.add(rock);}
+  } else if(theme==='lake'){
+    // veliko jezero v sredini + trstje + drevesa okoli
+    const lake=new THREE.Mesh(new THREE.CircleGeometry(66,48),new THREE.MeshLambertMaterial({color:0x2b8fd0}));
+    lake.rotation.x=-Math.PI/2; lake.position.set(0,0.04,0); world.add(lake);
+    for(let i=0;i<60;i++){const a=Math.random()*6.28,r=68+Math.random()*4; const reed=new THREE.Mesh(new THREE.CylinderGeometry(0.12,0.12,3+Math.random()*2,5),new THREE.MeshLambertMaterial({color:0x2f7d3a})); reed.position.set(Math.cos(a)*r,1.5,Math.sin(a)*r); world.add(reed);}
+    for(let i=0;i<55;i++){const a=Math.random()*6.28,r=150+Math.random()*220; tree(Math.cos(a)*r,Math.sin(a)*r,0.8+Math.random()*0.8,0x2e7d32);}
+  }
+}
+
+function buildTrack(idx){
+  const T=TRACKS[idx];
+  clearGroup(world);
+  const cps=T.cps.map(([x,z])=>new THREE.Vector3(x,0,z));
+  curve=new THREE.CatmullRomCurve3(cps,true,'catmullrom',0.5);
+  center=curve.getSpacedPoints(N); norms=[]; edgeL=[]; edgeR=[];
+  buildRoad(); buildWall(edgeL); buildWall(edgeR); finishLine(); makeHoles(); makeRamp(); decorate(T.theme); placeCans();
+  scene.background.setHex(T.bg); scene.fog.color.setHex(T.fog[0]); scene.fog.near=T.fog[1]; scene.fog.far=T.fog[2];
+  ground.material.color.setHex(T.ground);
+}
+
+// ===== LAMBORGHINI (majhen dirkalnik) =====
+function makeCar(color,scale){
+  const car=new THREE.Group();
+  const bodyMat=new THREE.MeshLambertMaterial({color});
+  const carbon=new THREE.MeshLambertMaterial({color:0x121419});
+  const glass=new THREE.MeshLambertMaterial({color:0x0c1a2b,transparent:true,opacity:0.62,emissive:0x060d16});
+  const s=new THREE.Shape();
+  const pts=[[-4.8,0.30],[-4.8,1.20],[-3.4,1.42],[-1.0,1.55],[0.9,1.34],[2.5,0.98],[4.4,0.74],[5.0,0.52],[5.0,0.30]];
+  s.moveTo(pts[0][0],pts[0][1]); for(let i=1;i<pts.length;i++)s.lineTo(pts[i][0],pts[i][1]); s.lineTo(pts[0][0],pts[0][1]);
+  const geo=new THREE.ExtrudeGeometry(s,{depth:4.0,bevelEnabled:true,bevelThickness:0.16,bevelSize:0.16,bevelSegments:2,steps:1});
+  geo.translate(0,0,-2.0); geo.rotateY(-Math.PI/2);
+  const body=new THREE.Mesh(geo,bodyMat); body.castShadow=true; car.add(body);
+  const cab=new THREE.Mesh(new THREE.CylinderGeometry(1.1,1.85,2.7,4),glass); cab.rotation.y=Math.PI/4; cab.position.set(0,1.68,-0.25); cab.scale.set(1,0.62,1.18); car.add(cab);
+  const splitter=new THREE.Mesh(new THREE.BoxGeometry(4.2,0.16,0.9),carbon); splitter.position.set(0,0.40,4.5); car.add(splitter);
+  [-2.1,2.1].forEach(x=>{const sk=new THREE.Mesh(new THREE.BoxGeometry(0.34,0.42,6.4),carbon); sk.position.set(x,0.55,0); car.add(sk);});
+  [-2.2,2.2].forEach(x=>{const air=new THREE.Mesh(new THREE.BoxGeometry(0.24,0.55,1.7),carbon); air.position.set(x,1.05,-1.7); car.add(air);});
+  const wing=new THREE.Mesh(new THREE.BoxGeometry(3.9,0.15,1.0),carbon); wing.position.set(0,1.95,-4.6); car.add(wing);
+  [-1.55,1.55].forEach(x=>{const st=new THREE.Mesh(new THREE.BoxGeometry(0.16,0.6,0.28),carbon); st.position.set(x,1.62,-4.5); car.add(st);});
+  const diff=new THREE.Mesh(new THREE.BoxGeometry(3.4,0.5,0.4),carbon); diff.position.set(0,0.55,-4.85); car.add(diff);
+  const exM=new THREE.MeshLambertMaterial({color:0x8a8f96});
+  [-0.66,-0.22,0.22,0.66].forEach(x=>{const e=new THREE.Mesh(new THREE.CylinderGeometry(0.15,0.15,0.3,10),exM); e.rotation.x=Math.PI/2; e.position.set(x,0.8,-4.95); car.add(e);});
+  const hl=new THREE.MeshLambertMaterial({color:0xffffee,emissive:0xa0a070});
+  [-1.55,1.55].forEach(x=>{const l=new THREE.Mesh(new THREE.BoxGeometry(0.7,0.13,0.35),hl); l.position.set(x,0.92,4.6); l.rotation.z=x>0?0.55:-0.55; car.add(l);});
+  const tl=new THREE.MeshLambertMaterial({color:0xff2a1a,emissive:0x6a1008});
+  const bar=new THREE.Mesh(new THREE.BoxGeometry(3.5,0.16,0.16),tl); bar.position.set(0,1.18,-4.78); car.add(bar);
+  [-2.25,2.25].forEach(x=>{const mr=new THREE.Mesh(new THREE.BoxGeometry(0.5,0.2,0.28),carbon); mr.position.set(x,1.28,1.5); car.add(mr);});
+  const tire=new THREE.MeshLambertMaterial({color:0x0a0a0a}), rim=new THREE.MeshLambertMaterial({color:0x2b2f37}), rimEdge=new THREE.MeshLambertMaterial({color:0xc2c6cd});
+  [[-2.2,-2.95],[2.2,-2.95],[-2.2,2.95],[2.2,2.95]].forEach(([x,z])=>{
+    const w=new THREE.Mesh(new THREE.CylinderGeometry(1.0,1.0,0.85,22),tire); w.rotation.z=Math.PI/2; w.position.set(x,1.0,z); w.castShadow=true; car.add(w);
+    const r=new THREE.Mesh(new THREE.CylinderGeometry(0.6,0.6,0.9,10),rim); r.rotation.z=Math.PI/2; r.position.set(x,1.0,z); car.add(r);
+    const re=new THREE.Mesh(new THREE.TorusGeometry(0.62,0.08,6,18),rimEdge); re.rotation.y=Math.PI/2; re.position.set(x+(x>0?0.44:-0.44),1.0,z); car.add(re);
+  });
+  car.scale.setScalar(scale||0.62);
+  return car;
+}
+
+// ===== KRMILJENJE =====
+const keys1={up:false,down:false,left:false,right:false};   // 1. igralec: puščice + gumbi
+const keys2={up:false,down:false,left:false,right:false};   // 2. igralec: W A S D
+const map1={ArrowUp:'up',ArrowDown:'down',ArrowLeft:'left',ArrowRight:'right'};
+const map2={w:'up',s:'down',a:'left',d:'right',W:'up',S:'down',A:'left',D:'right'};
+addEventListener('keydown',e=>{if(map1[e.key]){keys1[map1[e.key]]=true;e.preventDefault();}else if(map2[e.key]){keys2[map2[e.key]]=true;e.preventDefault();}});
+addEventListener('keyup',  e=>{if(map1[e.key]){keys1[map1[e.key]]=false;e.preventDefault();}else if(map2[e.key]){keys2[map2[e.key]]=false;e.preventDefault();}});
+document.querySelectorAll('.btn').forEach(b=>{const k=b.dataset.k;
+  const on=e=>{keys1[k]=true;e.preventDefault();},off=e=>{keys1[k]=false;e.preventDefault();};
+  b.addEventListener('touchstart',on,{passive:false});b.addEventListener('touchend',off,{passive:false});
+  b.addEventListener('mousedown',on);b.addEventListener('mouseup',off);b.addEventListener('mouseleave',off);});
+
+// kamera gumbi na zaslonu
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+function camAdjust(cmd){
+  if(cmd==='in'){ CAM_BACK=clamp(CAM_BACK-4,8,70); CAM_H=clamp(CAM_H-3,18,120); }
+  if(cmd==='out'){ CAM_BACK=clamp(CAM_BACK+4,8,70); CAM_H=clamp(CAM_H+3,18,120); }
+  if(cmd==='up'){ CAM_H=clamp(CAM_H+6,18,120); }      // bolj od zgoraj
+  if(cmd==='down'){ CAM_H=clamp(CAM_H-6,18,120); }    // bolj nizko
+}
+document.querySelectorAll('.cbtn').forEach(b=>{const c=b.dataset.cam;
+  const on=e=>{camAdjust(c);e.preventDefault();};
+  b.addEventListener('touchstart',on,{passive:false}); b.addEventListener('mousedown',on);});
+
+// ===== STANJE =====
+let state='menu', selTrack=0, numPlayers=1, cur=0, canDrive=false, startTime=0;
+let racers=[];
+const CAMDIR={x:0,z:1};   // FIKSNA smer kamere — kamera se NIKOLI ne obrne, samo sledi (pan) avtu
+function nearest(px,pz){let bi=0,bd=1e9;for(let i=0;i<N;i++){const dx=center[i].x-px,dz=center[i].z-pz,d=dx*dx+dz*dz;if(d<bd){bd=d;bi=i;}}return {i:bi};}
+function fmt(s){return s==null?'-':s.toFixed(2)+' s';}
+
+function buildMenu(){
+  const tr=$('tracks'); tr.innerHTML='';
+  TRACKS.forEach((t,i)=>{const el=document.createElement('div'); el.className='chip'+(i===selTrack?' sel':'');
+    el.innerHTML=t.emoji+' '+t.name; el.onclick=()=>{selTrack=i; buildMenu();}; tr.appendChild(el);});
+  const md=$('modes'); md.innerHTML='';
+  [[1,'👤 1 igralec'],[2,'👥 2 igralca']].forEach(([n,lbl])=>{const el=document.createElement('div'); el.className='chip'+(n===numPlayers?' sel':'');
+    el.textContent=lbl; el.onclick=()=>{numPlayers=n; buildMenu();}; md.appendChild(el);});
+  const d=$('drivers'); d.innerHTML='';
+  players.forEach((p,i)=>{const el=document.createElement('div'); el.className='driver';
+    el.style.background='#'+p.color.toString(16).padStart(6,'0');
+    el.innerHTML=p.name+'<small>Najboljši: '+fmt(p.best)+'</small>'; el.onclick=()=>startRace(i); d.appendChild(el);});
+  const done=players.filter(p=>p.best!=null);
+  $('lead').innerHTML = done.length ? '🏆 Najhitrejši: <b>'+[...done].sort((a,b)=>a.best-b.best)[0].name+'</b> ('+fmt([...done].sort((a,b)=>a.best-b.best)[0].best)+')' : '';
+}
+
+function startRace(i){
+  cur=i;
+  buildTrack(selTrack);
+  racers.forEach(R=>scene.remove(R.car)); racers=[];
+  const start=curve.getPointAt(0), tan=curve.getTangentAt(0), h0=Math.atan2(tan.x,tan.z);
+  const nrm=new THREE.Vector3().crossVectors(tan,new THREE.Vector3(0,1,0)).normalize();
+  function spawn(color,name,keys,lateral){
+    const car=makeCar(color); car.position.set(start.x+nrm.x*lateral,0,start.z+nrm.z*lateral); car.rotation.y=h0; scene.add(car);
+    racers.push({car,speed:0,heading:h0,boost:0,holeSlow:0,wasInHole:false,quarters:[false,false,false,false],prevT:0,finished:false,finishTime:0,keys,color,name,
+      y:0,vy:0,airborne:false,jx:0,jz:0,edgeMul:1,wasOnEdge:false});
+  }
+  spawn(players[i].color, players[i].name, keys1, numPlayers>1?4:0);
+  if(numPlayers>1){ const j=(i+1)%players.length; let c2=players[j].color; if(c2===players[i].color)c2=0xffd400; spawn(c2,'Igralec 2',keys2,-4); }
+  $('menu').style.display='none'; $('finish').style.display='none';
+  $('pname').textContent = numPlayers>1 ? (players[i].name+' vs Igralec 2') : players[i].name;
+  $('p2line').style.display=numPlayers>1?'block':'none';
+  canDrive=false; camera.position.set(start.x-CAMDIR.x*CAM_BACK,CAM_H,start.z-CAMDIR.z*CAM_BACK); camera.lookAt(start.x,1,start.z);
+  state='countdown'; runCountdown();
+}
+function runCountdown(){const c=$('count'); c.style.display='block'; let n=3; c.textContent=n;
+  const tick=()=>{n--; if(n>0){c.textContent=n;setTimeout(tick,800);} else if(n===0){c.textContent='GREMO!';setTimeout(tick,800);}
+    else{c.style.display='none';canDrive=true;startTime=performance.now();state='racing';}}; setTimeout(tick,800);}
+
+function onCarFinish(R){ if(racers.every(x=>x.finished)) showResults(); }
+function showResults(){
+  state='finished'; $('finish').style.display='block';
+  if(racers.length===1){ const R=racers[0], p=players[cur]; let rec=false; if(p.best==null||R.finishTime<p.best){p.best=R.finishTime;rec=true;}
+    $('finish').innerHTML=p.name+': <b>'+R.finishTime.toFixed(2)+' s</b>'+(rec?'<br>🎉 Nov najboljši čas!':''); }
+  else { const s=[...racers].sort((a,b)=>a.finishTime-b.finishTime);
+    $('finish').innerHTML='🏆 <b>'+s[0].name+'</b> zmaga!<br>'+s.map(R=>R.name+': '+R.finishTime.toFixed(2)+' s').join('<br>'); }
+  setTimeout(()=>{$('finish').style.display='none';buildMenu();$('menu').style.display='flex';state='menu';},3400);
+}
+
+// ===== FIZIKA ENEGA AVTA =====
+function stepCar(R,dt){
+  const nr=nearest(R.car.position.x,R.car.position.z);
+  let inHole=false; if(!R.airborne) for(const h of holes){const dx=h.x-R.car.position.x,dz=h.z-R.car.position.z; if(dx*dx+dz*dz<h.r*h.r){inHole=true;break;}}  // v zraku preskočiš luknjo
+  if(inHole && !R.wasInHole){ R.speed*=0.262; R.holeSlow=LUKNJA_KAZEN; }
+  R.wasInHole=inHole; if(R.holeSlow>0) R.holeSlow-=dt;
+  if(R.boost>0) R.boost-=dt;
+  let effMax=NAJ_HITROST*(R.boost>0?TURBO_MOC:1)*R.edgeMul;
+  if(R.holeSlow>0) effMax*=0.352;
+  if(canDrive){
+    if(R.keys.up) R.speed+=(R.boost>0?95:55)*dt;
+    else if(R.keys.down) R.speed-=55*dt;
+    else R.speed*=0.96;
+  }
+  R.speed=Math.max(-NAJ_HITROST*0.4,R.speed);
+  if(R.speed>effMax) R.speed=Math.max(effMax,R.speed-70*dt);
+  if(Math.abs(R.speed)>1){const tr=TURN*dt*(R.speed>0?1:-1); if(R.keys.left)R.heading+=tr; if(R.keys.right)R.heading-=tr;}
+  R.car.rotation.y=R.heading;
+  R.car.position.x+=Math.sin(R.heading)*R.speed*dt; R.car.position.z+=Math.cos(R.heading)*R.speed*dt;
+
+  // ---- SKAKALNICA ----
+  if(ramp && !R.airborne && R.speed>NAJ_HITROST*0.45){
+    const dx=ramp.x-R.car.position.x, dz=ramp.z-R.car.position.z;
+    if(dx*dx+dz*dz<ramp.r*ramp.r){ R.airborne=true; R.vy=10+R.speed*0.12; R.jx=R.car.position.x; R.jz=R.car.position.z; }
+  }
+  if(R.airborne){
+    R.y+=R.vy*dt; R.vy-=48*dt;   // gravitacija
+    R.car.rotation.x=Math.max(-0.5,Math.min(0.5,R.vy*0.02));   // rahel nagib v zraku
+    if(R.y<=0){ R.y=0; R.airborne=false; R.car.rotation.x=0;
+      const jd=Math.hypot(R.car.position.x-R.jx,R.car.position.z-R.jz);
+      if(jd>26) R.boost=TURBO_TRAJANJE;   // daleč skočil -> avtomatski TURBO!
+    }
+  }
+
+  const c=center[nr.i], nn=norms[nr.i];
+  const offset=(R.car.position.x-c.x)*nn.x+(R.car.position.z-c.z)*nn.z, maxLat=HW-1.8;
+  const onEdge=Math.abs(offset)>maxLat;
+  if(onEdge){ const over=Math.abs(offset)-maxLat, sgn=Math.sign(offset);
+    R.car.position.x-=nn.x*over*sgn; R.car.position.z-=nn.z*over*sgn;   // ostani na progi, ne prebij ograje
+    if(!R.wasOnEdge){ R.edgeMul=Math.min(R.edgeMul*1.15,3); R.speed*=1.15; R.boost=Math.max(R.boost,0.35); }  // vsak NOV dotik robnika: +15% hitrosti (trajno) + kratek turbo prikaz
+  }
+  R.wasOnEdge=onEdge;
+  cans.forEach(cn=>{if(cn.taken)return; const dx=cn.x-R.car.position.x,dz=cn.z-R.car.position.z; if(dx*dx+dz*dz<20){cn.taken=true;cn.mesh.visible=false;R.boost=TURBO_TRAJANJE;}});
+  if(state==='racing' && !R.finished){
+    const tt=nr.i/N; R.quarters[Math.floor(tt*4)%4]=true;
+    if(R.quarters.every(Boolean)&&R.prevT>0.8&&tt<0.2){ R.finished=true; R.finishTime=(performance.now()-startTime)/1000; onCarFinish(R); }
+    R.prevT=tt;
+  }
+  R.car.position.y=R.y;   // dvig med skokom
+}
+
+// ===== KAMERA =====
+function updateCamera(){
+  let mx=0,mz=0; for(const R of racers){mx+=R.car.position.x;mz+=R.car.position.z;} mx/=racers.length; mz/=racers.length;
+  // FIKSNA smer (CAMDIR) — kamera se nikoli ne obrne, le sledi položaju avta(-ov)
+  let back=CAM_BACK, h=CAM_H;
+  if(racers.length>1){ const sx=racers[0].car.position.x-racers[1].car.position.x, sz=racers[0].car.position.z-racers[1].car.position.z; const sep=Math.hypot(sx,sz); back=CAM_BACK+sep*0.55; h=CAM_H+sep*0.5; }
+  camera.position.lerp(new THREE.Vector3(mx-CAMDIR.x*back,h,mz-CAMDIR.z*back),0.1); camera.lookAt(mx,1,mz);
+}
+
+// ===== ZANKA =====
+const clock=new THREE.Clock();
+function animate(){
+  requestAnimationFrame(animate);
+  const dt=Math.min(clock.getDelta(),0.05);
+  cans.forEach(cn=>{if(cn.taken)return; cn.mesh.rotation.y+=2*dt; cn.mesh.position.y=1.6+Math.sin(performance.now()/300)*0.3;});
+  if((state==='racing'||state==='countdown') && racers.length){
+    for(const R of racers) if(!R.finished) stepCar(R,dt);
+    if(state==='racing') $('time').textContent=((performance.now()-startTime)/1000).toFixed(1);
+    if(numPlayers>1){ $('p2line').innerHTML=racers.map(R=>R.name+': '+(R.finished?('✅ '+R.finishTime.toFixed(2)+'s'):'v teku')).join(' · '); }
+    $('turbo').style.display=racers.some(R=>R.boost>0)?'block':'none';
+    updateCamera();
+  }
+  renderer.render(scene,camera);
+}
+
+buildTrack(0); buildMenu(); animate();
+addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);});
+</script>
+</body>
+</html>
