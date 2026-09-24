@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="sl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Motor &amp; Skok 🏍️</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+  html,body{height:100%;overflow:hidden;background:#0b1020;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;}
+  #game{position:fixed;inset:0;touch-action:none;}
+  canvas{display:block;width:100%;height:100%;}
+  .overlay{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    text-align:center;color:#fff;padding:24px;z-index:5;}
+  .panel{background:rgba(12,18,40,.82);border:2px solid rgba(255,255,255,.18);border-radius:22px;
+    padding:26px 26px 30px;max-width:440px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.5);backdrop-filter:blur(6px);}
+  h1{font-size:clamp(28px,7vw,44px);font-weight:900;letter-spacing:-1px;margin-bottom:6px;}
+  h1 .em{filter:drop-shadow(0 4px 8px rgba(0,0,0,.4));}
+  p.sub{opacity:.9;font-size:15px;line-height:1.5;margin-bottom:16px;}
+  .btn{display:inline-block;background:#ffd23b;color:#12203a;font-weight:900;font-size:18px;
+    padding:14px 26px;border:none;border-radius:999px;box-shadow:0 6px 0 #d9a800;cursor:pointer;margin-top:8px;}
+  .btn:active{transform:translateY(3px);box-shadow:0 3px 0 #d9a800;}
+  .players{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin:14px 0 6px;}
+  .pbtn{background:rgba(255,255,255,.1);border:2px solid rgba(255,255,255,.25);color:#fff;font-weight:800;
+    font-size:15px;padding:10px 16px;border-radius:14px;cursor:pointer;transition:.15s;}
+  .pbtn.sel{background:#ffd23b;color:#12203a;border-color:#ffd23b;}
+  .how{font-size:13.5px;opacity:.85;line-height:1.6;text-align:left;background:rgba(255,255,255,.06);
+    border-radius:12px;padding:12px 14px;margin:14px 0 4px;}
+  .how b{color:#ffd23b;}
+  .board{width:100%;margin-top:10px;font-size:14px;}
+  .board .row{display:flex;justify-content:space-between;padding:5px 8px;border-radius:8px;}
+  .board .row:nth-child(even){background:rgba(255,255,255,.06);}
+  .big{font-size:clamp(40px,12vw,72px);font-weight:900;color:#ffd23b;text-shadow:0 4px 0 #d9a800;line-height:1;}
+  .medal{font-size:34px;margin:6px 0;}
+  a.home{position:fixed;top:10px;left:10px;z-index:6;background:rgba(12,18,40,.7);color:#fff;
+    text-decoration:none;font-weight:800;font-size:14px;padding:8px 14px;border-radius:999px;border:1px solid rgba(255,255,255,.2);}
+  .hud{position:fixed;top:0;left:0;right:0;z-index:4;display:flex;justify-content:space-between;align-items:center;
+    padding:10px 14px 10px 100px;color:#fff;font-weight:900;pointer-events:none;text-shadow:0 2px 6px rgba(0,0,0,.6);}
+  .hud .spd{font-size:16px;}
+  .hud .time{font-size:26px;}
+  .spdbar{position:fixed;left:14px;right:14px;bottom:14px;height:14px;background:rgba(0,0,0,.4);border-radius:999px;
+    z-index:4;overflow:hidden;border:1px solid rgba(255,255,255,.2);}
+  .spdbar i{display:block;height:100%;width:50%;background:linear-gradient(90deg,#39d353,#ffd23b,#ff5d5d);transition:width .1s;}
+  .hidden{display:none!important;}
+  .tip{position:fixed;bottom:36px;left:0;right:0;text-align:center;color:#fff;font-weight:800;z-index:4;
+    font-size:14px;opacity:.9;text-shadow:0 2px 6px rgba(0,0,0,.6);pointer-events:none;}
+</style>
+</head>
+<body>
+<a class="home" href="../../">← Igre</a>
+<div id="game"><canvas id="c"></canvas></div>
+
+<!-- HUD -->
+<div class="hud hidden" id="hud">
+  <div class="spd">🏍️ <span id="spdTxt">0</span> km/h</div>
+  <div class="time" id="timeTxt">20</div>
+  <div class="spd" id="rideMsg"></div>
+</div>
+<div class="spdbar hidden" id="spdbar"><i id="spdfill"></i></div>
+<div class="tip hidden" id="tip"></div>
+
+<!-- MENU -->
+<div class="overlay" id="menu">
+  <div class="panel">
+    <h1><span class="em">🏍️</span> Motor &amp; Skok</h1>
+    <p class="sub">20 sekund se izogibaj oviram in lovi pospeševala, nato skoči z velike skakalnice. Čim hitrejši si in čim bolj aerodinamičen v zraku, dlje skočiš!</p>
+    <div class="players" id="players"></div>
+    <div class="how">
+      <b>Vožnja:</b> premikaj se levo/desno (tipke ← → ali A/D, na telefonu drži levo/desno stran zaslona).<br>
+      <b>⚡ zeleni</b> te pospešijo · <b>🛢️ rdeči</b> te upočasnijo.<br>
+      <b>Skok:</b> v zraku <b>drži</b> (preslednica / Down / dotik), da se zaviješ v aerodinamičen položaj — pazi, da si v <b>zeleni coni</b>. Predolgo držanje = prevrat!
+    </div>
+    <button class="btn" id="startBtn">▶ Štart</button>
+    <div class="board" id="menuBoard"></div>
+  </div>
+</div>
+
+<!-- RESULT -->
+<div class="overlay hidden" id="result">
+  <div class="panel">
+    <div class="medal" id="medal">🏁</div>
+    <p class="sub" style="margin-bottom:2px" id="resWho">Skok</p>
+    <div class="big"><span id="resDist">0</span> m</div>
+    <p class="sub" id="resDetail" style="margin-top:10px"></p>
+    <div class="board" id="resBoard"></div>
+    <button class="btn" id="againBtn">↺ Še enkrat</button>
+    <button class="btn" id="menuBtn" style="background:#8fd0ff;box-shadow:0 6px 0 #4aa3e0;">🏠 Meni</button>
+  </div>
+</div>
+
+<script>
+(function(){
+"use strict";
+const cv=document.getElementById("c"), ctx=cv.getContext("2d");
+let W=0,H=0,DPR=1;
+function resize(){
+  DPR=Math.min(window.devicePixelRatio||1,2);
+  W=window.innerWidth; H=window.innerHeight;
+  cv.width=W*DPR; cv.height=H*DPR; ctx.setTransform(DPR,0,0,DPR,0,0);
+}
+window.addEventListener("resize",resize); resize();
+
+// ---- players / leaderboard ----
+const PLAYERS=[{n:"Marko",c:"#ff5d5d"},{n:"Olivia",c:"#ff8fd6"},{n:"Oči",c:"#8fd0ff"}];
+let player=PLAYERS[0];
+const LB_KEY="motorskok_best_v1";
+function loadLB(){ try{return JSON.parse(localStorage.getItem(LB_KEY))||{};}catch(e){return {};} }
+function saveBest(name,dist){ const lb=loadLB(); if(!lb[name]||dist>lb[name]){lb[name]=dist;} localStorage.setItem(LB_KEY,JSON.stringify(lb)); }
+function boardHTML(){
+  const lb=loadLB();
+  const rows=PLAYERS.map(p=>({n:p.n,d:lb[p.n]||0})).sort((a,b)=>b.d-a.d);
+  const med=["🥇","🥈","🥉"];
+  return '<div class="board">'+rows.map((r,i)=>'<div class="row"><span>'+(med[i]||"")+' '+r.n+'</span><span>'+(r.d?r.d+" m":"—")+'</span></div>').join('')+'</div>';
+}
+
+// ---- input ----
+const keys={left:false,right:false,hold:false};
+addEventListener("keydown",e=>{
+  if(e.code==="ArrowLeft"||e.code==="KeyA")keys.left=true;
+  if(e.code==="ArrowRight"||e.code==="KeyD")keys.right=true;
+  if(e.code==="Space"||e.code==="ArrowDown"){keys.hold=true;e.preventDefault();}
+});
+addEventListener("keyup",e=>{
+  if(e.code==="ArrowLeft"||e.code==="KeyA")keys.left=false;
+  if(e.code==="ArrowRight"||e.code==="KeyD")keys.right=false;
+  if(e.code==="Space"||e.code==="ArrowDown")keys.hold=false;
+});
+// touch: left/right halves steer during ride; anywhere = hold during air
+const touchState={ids:{}};
+function touchUpdate(){
+  keys.left=false;keys.right=false;keys.hold=false;
+  for(const k in touchState.ids){
+    const x=touchState.ids[k];
+    keys.hold=true;
+    if(x<W/2)keys.left=true; else keys.right=true;
+  }
+}
+cv.addEventListener("touchstart",e=>{e.preventDefault();for(const t of e.changedTouches)touchState.ids[t.identifier]=t.clientX;touchUpdate();},{passive:false});
+cv.addEventListener("touchmove",e=>{e.preventDefault();for(const t of e.changedTouches)if(t.identifier in touchState.ids)touchState.ids[t.identifier]=t.clientX;touchUpdate();},{passive:false});
+function endTouch(e){for(const t of e.changedTouches)delete touchState.ids[t.identifier];touchUpdate();}
+cv.addEventListener("touchend",endTouch);cv.addEventListener("touchcancel",endTouch);
+
+// ---- game state ----
+let state="menu";
+let speed=55;           // 0..110
+const MAXSPD=110, MINSPD=8;
+let riderX=0;           // -1..1
+let riderVX=0;
+let timeLeft=20;
+let obstacles=[];       // {z, x, kind}
+let spawnT=0;
+let roadOfs=0;
+let last=0, msg="", msgT=0;
+let base=0, distance=0, mult=1;
+// air phase
+let lean=0.5, aeroTime=0, flightT=0, flightDur=0, airProg=0, wobble=0;
+
+const GOOD=[{e:"⚡",d:14},{e:"🚀",d:18},{e:"⭐",d:12},{e:"🔥",d:15}];
+const BAD=[{e:"🛢️",d:-16},{e:"🚧",d:-18},{e:"🪨",d:-14},{e:"🕳️",d:-20},{e:"🐢",d:-12},{e:"🧴",d:-13}];
+
+function startRide(){
+  state="ride"; speed=55; riderX=0; riderVX=0; timeLeft=20; obstacles=[]; spawnT=0; roadOfs=0; msg="";
+  document.getElementById("menu").classList.add("hidden");
+  document.getElementById("result").classList.add("hidden");
+  document.getElementById("hud").classList.remove("hidden");
+  document.getElementById("spdbar").classList.remove("hidden");
+  const tip=document.getElementById("tip"); tip.classList.remove("hidden"); tip.textContent="Izogibaj se 🛢️ · lovi ⚡";
+  setTimeout(()=>tip.classList.add("hidden"),2200);
+}
+function startAir(){
+  state="air";
+  base=Math.round(200+ (Math.max(0,Math.min(1,(speed-MINSPD)/(MAXSPD-MINSPD)))*200)); // 200..400
+  lean=0.45; aeroTime=0; flightT=0; airProg=0; wobble=0;
+  flightDur=2.6+ base/400*2.0; // 2.6..4.6s, faster jump lasts a bit longer
+  distance=0; mult=1;
+  document.getElementById("spdbar").classList.add("hidden");
+  const tip=document.getElementById("tip"); tip.classList.remove("hidden"); tip.textContent="DRŽI za aerodinamičen položaj — bodi v zeleni coni!";
+}
+function finish(){
+  state="result";
+  const aeroPct=flightDur>0?aeroTime/flightDur:0;
+  mult=0.80+0.45*aeroPct;               // 0.80 .. 1.25
+  distance=Math.round(base*mult);
+  saveBest(player.n,distance);
+  document.getElementById("hud").classList.add("hidden");
+  document.getElementById("tip").classList.add("hidden");
+  const lb=loadLB();
+  const best=Math.max.apply(null,PLAYERS.map(p=>lb[p.n]||0));
+  const isBest=distance>=best && distance>0;
+  document.getElementById("medal").textContent=isBest?"🏆":"🏁";
+  document.getElementById("resWho").textContent=player.n+" — skok";
+  document.getElementById("resDist").textContent=distance;
+  const q=aeroPct>0.75?"odličen aero! 🦅":aeroPct>0.45?"soliden položaj ✈️":"malo več tuck-a naslednjič 😉";
+  document.getElementById("resDetail").innerHTML="Hitrost: <b>"+Math.round(speed)+" km/h</b> → osnova "+base+" m · aero ×"+mult.toFixed(2)+" — "+q+(isBest?"<br><b>Nov rekord! 🎉</b>":"");
+  document.getElementById("resBoard").innerHTML=boardHTML();
+  document.getElementById("result").classList.remove("hidden");
+}
+
+// ---- helpers: perspective road ----
+function proj(z){ // z:1 far..0 near -> screen params
+  const horizon=H*0.42;
+  const p=Math.pow(1-z,1.6);          // eased depth
+  const y=horizon + (H-horizon)*p;
+  const roadHalf=(W*0.06) + (W*0.52)*p;
+  const scale=0.12+1.05*p;
+  return {y,roadHalf,scale,horizon};
+}
+function drawRoad(){
+  const horizon=H*0.42;
+  // sky
+  let sky=ctx.createLinearGradient(0,0,0,horizon);
+  sky.addColorStop(0,"#4aa3e0"); sky.addColorStop(1,"#bfe6ff");
+  ctx.fillStyle=sky; ctx.fillRect(0,0,W,horizon);
+  // sun
+  ctx.fillStyle="#fff3b0"; ctx.beginPath(); ctx.arc(W*0.76,horizon*0.5,Math.min(W,H)*0.09,0,7); ctx.fill();
+  // hills
+  ctx.fillStyle="#7ec86b"; ctx.beginPath(); ctx.moveTo(0,horizon);
+  for(let x=0;x<=W;x+=40){ctx.lineTo(x,horizon-30-25*Math.sin(x*0.01+2));} ctx.lineTo(W,horizon);ctx.closePath();ctx.fill();
+  // grass
+  ctx.fillStyle="#3fa53a"; ctx.fillRect(0,horizon,W,H-horizon);
+  // road polygon
+  const far=proj(1), near=proj(0);
+  ctx.fillStyle="#3a3f4a"; ctx.beginPath();
+  ctx.moveTo(W/2-far.roadHalf,far.y); ctx.lineTo(W/2+far.roadHalf,far.y);
+  ctx.lineTo(W/2+near.roadHalf,near.y); ctx.lineTo(W/2-near.roadHalf,near.y); ctx.closePath(); ctx.fill();
+  // side stripes (red/white) alternating by depth
+  for(let i=0;i<40;i++){
+    const z0=i/40, z1=(i+0.5)/40;
+    const seg=((i+Math.floor(roadOfs))%2===0);
+    const a=proj(1-z0), b=proj(1-z1);
+    ctx.fillStyle=seg?"#e23b3b":"#ffffff";
+    [[-1,-1],[1,1]].forEach(s=>{
+      const sgn=s[0];
+      ctx.beginPath();
+      ctx.moveTo(W/2+sgn*a.roadHalf, a.y);
+      ctx.lineTo(W/2+sgn*(a.roadHalf+a.scale*10), a.y);
+      ctx.lineTo(W/2+sgn*(b.roadHalf+b.scale*10), b.y);
+      ctx.lineTo(W/2+sgn*b.roadHalf, b.y);
+      ctx.closePath(); ctx.fill();
+    });
+  }
+  // center dashes
+  ctx.fillStyle="#ffd23b";
+  for(let i=0;i<20;i++){
+    const z=1-((i+ (roadOfs%1))/20);
+    if(z<=0)continue;
+    const pr=proj(z); const w=Math.max(2,pr.scale*5);
+    if(Math.floor(i+roadOfs)%2===0)
+      ctx.fillRect(W/2-w/2, pr.y-pr.scale*8, w, pr.scale*10);
+  }
+}
+function xOnRoad(x,z){ const pr=proj(z); return {x:W/2+x*pr.roadHalf*0.82, y:pr.y, s:pr.scale}; }
+
+function drawBike(cx,cy,s,tilt){
+  ctx.save(); ctx.translate(cx,cy); ctx.scale(s,s); ctx.rotate(tilt*0.25);
+  // shadow
+  ctx.fillStyle="rgba(0,0,0,.28)"; ctx.beginPath(); ctx.ellipse(0,26,34,9,0,0,7); ctx.fill();
+  // rear wheel
+  ctx.fillStyle="#111"; ctx.beginPath(); ctx.ellipse(0,20,20,20,0,0,7); ctx.fill();
+  ctx.fillStyle="#333"; ctx.beginPath(); ctx.ellipse(0,20,10,10,0,0,7); ctx.fill();
+  // body
+  ctx.fillStyle=player.c; ctx.beginPath();
+  ctx.moveTo(-22,6); ctx.quadraticCurveTo(0,-6,22,6); ctx.quadraticCurveTo(14,20,0,18); ctx.quadraticCurveTo(-14,20,-22,6); ctx.fill();
+  // brake light
+  ctx.fillStyle="#ff3b3b"; ctx.fillRect(-6,10,12,6);
+  // rider back
+  ctx.fillStyle="#1c2436"; ctx.beginPath(); ctx.ellipse(0,-14,15,20,0,0,7); ctx.fill();
+  // helmet
+  ctx.fillStyle=player.c; ctx.beginPath(); ctx.arc(0,-30,12,0,7); ctx.fill();
+  ctx.fillStyle="rgba(255,255,255,.35)"; ctx.beginPath(); ctx.arc(0,-31,12,Math.PI*1.1,Math.PI*1.5); ctx.fill();
+  // arms
+  ctx.strokeStyle="#1c2436"; ctx.lineWidth=6; ctx.lineCap="round";
+  ctx.beginPath(); ctx.moveTo(-10,-10); ctx.lineTo(-20,4); ctx.moveTo(10,-10); ctx.lineTo(20,4); ctx.stroke();
+  ctx.restore();
+}
+
+// ---- update ----
+function update(dt){
+  if(state==="ride"){
+    timeLeft-=dt;
+    // steering
+    let ax=0; if(keys.left)ax-=1; if(keys.right)ax+=1;
+    riderVX += ax*6.5*dt; riderVX*=0.86; riderX+=riderVX*dt;
+    if(riderX<-1){riderX=-1;riderVX=0;} if(riderX>1){riderX=1;riderVX=0;}
+    // speed slowly drifts down a touch so boosters matter
+    speed-=2.5*dt; if(speed<MINSPD)speed=MINSPD;
+    // road scroll by speed
+    roadOfs += (0.6+speed/28)*dt*6;
+    // spawn
+    spawnT-=dt;
+    const gap=Math.max(0.35,0.95-speed/220);
+    if(spawnT<=0){ spawnT=gap;
+      const good=Math.random()<0.42;
+      const set=good?GOOD:BAD; const it=set[(Math.random()*set.length)|0];
+      obstacles.push({z:1,x:(Math.random()*2-1)*0.9,good,e:it.e,d:it.d,hit:false});
+    }
+    // move obstacles toward player
+    const adv=(0.10+speed/260)*dt;
+    for(const o of obstacles){ o.z-=adv;
+      if(!o.hit && o.z<0.06){
+        if(Math.abs(o.x-riderX)<0.28){ o.hit=true; speed=Math.max(MINSPD,Math.min(MAXSPD,speed+o.d));
+          msg=(o.good?"+":"")+o.d+" km/h"; msgT=0.7; }
+      }
+    }
+    obstacles=obstacles.filter(o=>o.z>-0.1);
+    if(msgT>0)msgT-=dt;
+    if(timeLeft<=0){ timeLeft=0; startAir(); }
+  }
+  else if(state==="air"){
+    flightT+=dt; airProg=Math.min(1,flightT/flightDur);
+    // lean toward tuck when holding, else rises to upright
+    if(keys.hold) lean+=0.85*dt; else lean-=1.05*dt;
+    lean=Math.max(0,Math.min(1,lean));
+    const inZone = lean>=0.6 && lean<=0.9;
+    if(inZone) aeroTime+=dt;
+    wobble = lean>0.96 ? Math.min(1,wobble+dt*3) : Math.max(0,wobble-dt*2);
+    // live distance grows with flight progress, scaled by aero quality so far
+    distance=Math.round(base*airProg*(0.80+0.45*(aeroTime/flightDur)));
+    if(flightT>=flightDur) finish();
+  }
+}
+
+// ---- render ----
+function drawAir(){
+  // sky + snow ground (ski jump)
+  let sky=ctx.createLinearGradient(0,0,0,H); sky.addColorStop(0,"#8fd0ff"); sky.addColorStop(1,"#eaf6ff");
+  ctx.fillStyle=sky; ctx.fillRect(0,0,W,H);
+  const groundY=H*0.8;
+  ctx.fillStyle="#ffffff"; ctx.fillRect(0,groundY,W,H-groundY);
+  ctx.strokeStyle="#cfe3f2"; ctx.lineWidth=2;
+  // distance markers
+  ctx.fillStyle="#9fb6c8"; ctx.font="bold 13px sans-serif";
+  for(let m=100;m<=500;m+=100){
+    const gx=W*0.14 + (m/500)*(W*0.8);
+    ctx.fillRect(gx,groundY,2,10); ctx.fillText(m+"m",gx-10,groundY+26);
+  }
+  // ramp on left
+  ctx.fillStyle="#dff0ff"; ctx.beginPath();
+  ctx.moveTo(0,groundY); ctx.lineTo(W*0.16,groundY); ctx.lineTo(W*0.02,H*0.5); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle="#7fb0d8"; ctx.stroke();
+  // flight arc: start at ramp tip, parabola across
+  const x0=W*0.05,y0=H*0.5, x1=W*0.14+(distance/500)*(W*0.8), yApex=H*0.22;
+  const t=airProg;
+  const bx=x0+(x1-x0)*t;
+  const by=y0 + (groundY-y0)* (t) - Math.sin(Math.PI*t)*(y0-yApex)*1.4;
+  // trajectory dotted
+  ctx.strokeStyle="rgba(120,160,200,.5)"; ctx.setLineDash([5,7]); ctx.beginPath();
+  for(let i=0;i<=30;i++){const tt=i/30;const px=x0+(x1-x0)*tt;const py=y0+(groundY-y0)*tt-Math.sin(Math.PI*tt)*(y0-yApex)*1.4;i?ctx.lineTo(px,py):ctx.moveTo(px,py);}
+  ctx.stroke(); ctx.setLineDash([]);
+  // rider (side view) — tilt with lean: 0 upright, 1 flat/tuck
+  ctx.save(); ctx.translate(bx,by);
+  const ang = -0.2 - lean*0.9 + (wobble?Math.sin(flightT*40)*0.25*wobble:0);
+  ctx.rotate(ang);
+  // motorbike side
+  ctx.fillStyle="#111"; ctx.beginPath(); ctx.arc(-16,10,10,0,7); ctx.arc(16,10,10,0,7); ctx.fill();
+  ctx.fillStyle=player.c; ctx.beginPath(); ctx.moveTo(-20,6);ctx.lineTo(20,6);ctx.lineTo(14,-4);ctx.lineTo(-10,-4);ctx.closePath(); ctx.fill();
+  // rider body leaning forward when tucked
+  ctx.fillStyle="#1c2436"; ctx.save(); ctx.translate(-2,-6); ctx.rotate(-lean*0.5);
+  ctx.fillRect(-6,-20,14,20); ctx.beginPath(); ctx.arc(2,-24,9,0,7); ctx.fill(); // helmet
+  ctx.fillStyle=player.c; ctx.beginPath(); ctx.arc(2,-24,9,Math.PI*0.9,Math.PI*1.5); ctx.fill();
+  ctx.restore(); ctx.restore();
+  // aero meter (right side)
+  const mx=W-40,my=H*0.28,mh=H*0.4;
+  ctx.fillStyle="rgba(0,0,0,.25)"; ctx.fillRect(mx-2,my-2,24,mh+4);
+  // green zone 0.6..0.9 mapped (lean 1 at top)
+  ctx.fillStyle="rgba(57,211,83,.55)";
+  const zTop=my+(1-0.9)*mh, zBot=my+(1-0.6)*mh; ctx.fillRect(mx,zTop,20,zBot-zTop);
+  // marker
+  const my2=my+(1-lean)*mh;
+  ctx.fillStyle=(lean>=0.6&&lean<=0.9)?"#39d353":(lean>0.96?"#ff3b3b":"#ffd23b");
+  ctx.fillRect(mx-4,my2-4,28,8);
+  ctx.fillStyle="#12203a"; ctx.font="bold 11px sans-serif"; ctx.fillText("AERO",mx-6,my-8);
+}
+
+function render(){
+  if(state==="ride"){
+    drawRoad();
+    // obstacles sorted far->near
+    obstacles.slice().sort((a,b)=>b.z-a.z).forEach(o=>{
+      if(o.z<=0.02||o.hit&&o.z<0)return;
+      const p=xOnRoad(o.x,Math.max(0.02,o.z));
+      const size=Math.max(14,p.s*34);
+      ctx.font=size+"px serif"; ctx.textAlign="center"; ctx.textBaseline="middle";
+      if(o.good){ctx.save();ctx.shadowColor="#39d353";ctx.shadowBlur=size*0.4;ctx.fillText(o.e,p.x,p.y-size*0.3);ctx.restore();}
+      else ctx.fillText(o.e,p.x,p.y-size*0.3);
+    });
+    // bike
+    const bp=xOnRoad(riderX,0.02);
+    drawBike(bp.x,H*0.9,1.15,riderVX*0.5);
+    // HUD
+    document.getElementById("spdTxt").textContent=Math.round(speed);
+    document.getElementById("timeTxt").textContent=Math.ceil(timeLeft);
+    document.getElementById("spdfill").style.width=(speed/MAXSPD*100)+"%";
+    document.getElementById("rideMsg").textContent=(msgT>0?msg:"");
+    document.getElementById("rideMsg").style.color=(msg[0]==="+"?"#39d353":"#ff5d5d");
+    ctx.textAlign="start"; ctx.textBaseline="alphabetic";
+  } else if(state==="air"){
+    drawAir();
+    // big live distance
+    ctx.fillStyle="#12203a"; ctx.font="900 "+Math.min(56,W*0.13)+"px sans-serif"; ctx.textAlign="center";
+    ctx.fillText(Math.round(distance)+" m", W/2, H*0.14);
+    ctx.textAlign="start";
+  }
+}
+
+function loop(ts){
+  const dt=Math.min(0.05,(ts-last)/1000||0); last=ts;
+  if(state==="ride"||state==="air") update(dt);
+  ctx.clearRect(0,0,W,H); render();
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+// ---- menu wiring ----
+const playersDiv=document.getElementById("players");
+PLAYERS.forEach((p,i)=>{
+  const b=document.createElement("button"); b.className="pbtn"+(i===0?" sel":""); b.textContent=p.n;
+  b.onclick=()=>{player=p;[...playersDiv.children].forEach(c=>c.classList.remove("sel"));b.classList.add("sel");};
+  playersDiv.appendChild(b);
+});
+document.getElementById("menuBoard").innerHTML="<div style='opacity:.8;margin-top:6px;font-weight:800'>🏆 Najdaljši skoki</div>"+boardHTML();
+document.getElementById("startBtn").onclick=startRide;
+document.getElementById("againBtn").onclick=startRide;
+document.getElementById("menuBtn").onclick=()=>{
+  state="menu";
+  document.getElementById("result").classList.add("hidden");
+  document.getElementById("menuBoard").innerHTML="<div style='opacity:.8;margin-top:6px;font-weight:800'>🏆 Najdaljši skoki</div>"+boardHTML();
+  document.getElementById("menu").classList.remove("hidden");
+};
+})();
+</script>
+</body>
+</html>
