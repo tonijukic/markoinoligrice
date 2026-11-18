@@ -213,10 +213,13 @@
   // ---- judging ----
   function tasteScore(){
     const variety=new Set(stack.filter(s=>s.good).map(s=>s.meat?'MEAT':s.emoji)).size;
-    let t=goodN*1.0 + variety*0.8 - badN*1.7;
+    let t=goodN*1.0 + variety*0.8 - badN*2.0;
     if(!caughtSauce) t-=2.5;                 // vsaj ena omaka je obvezna
     t=Math.max(0,Math.min(10,t));
     if(!hasMeat) t=Math.min(t,7);            // brez mesa NE more do 10 točk
+    // Slaba sestavina (čevelj, milo, nogavica…) MOČNO zniža oceno in onemogoči 10:
+    // 1 slaba -> največ 4, vsaka naslednja -1,5 (2->2,5; 3->1; 4+ -> 0).
+    if(badN>0) t=Math.min(t, Math.max(0, 4 - (badN-1)*1.5));
     return Math.round(t*10)/10;
   }
   function verdictText(t){
