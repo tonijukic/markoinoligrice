@@ -237,8 +237,8 @@ const WEAPONS=[
 ];
 let weapon=0;
 const BASE_WATER_Y=Math.round(H*0.70);        // začetna gladina
-const TIDE_STEP=1.0, TIDE_MAX=85;             // osnovni dvig na potezo + največji skupni dvig (blag) — upočasnjeno (prej 1.8)
-const DIG_TIDE=0.35;                          // dodaten dvig glede na izkopano zemljo na tisti strani — upočasnjeno (prej 0.7)
+const TIDE_STEP=1.4, TIDE_MAX=85;             // osnovni dvig na potezo + največji skupni dvig (blag) — sredina (1.8 prehitro, 1.0 prepočasi)
+const DIG_TIDE=0.5;                           // dodaten dvig glede na izkopano zemljo na tisti strani — sredina (prej 0.7 / 0.35)
 let tideL=0, tideR=0, digL=0, digR=0;         // ločena plima L/D + izkop na vsaki strani (voda hitreje prodira, kjer je več lukenj)
 function waterYAt(x){ return BASE_WATER_Y - (x<W/2 ? tideL : tideR); }
 let heightY=[], scorch=[];                // višinska karta terena (y površine na stolpec) + kje je ožgano (krater)
